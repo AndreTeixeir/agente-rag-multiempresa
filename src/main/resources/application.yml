@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: agente-rag
+  datasource:
+    url: jdbc:postgresql://localhost:5434/agenterag
+    username: rag
+    password: rag
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+management:
+  endpoint:
+    health:
+      show-details: always
