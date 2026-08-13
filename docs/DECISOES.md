@@ -68,3 +68,58 @@ preserva a fidelidade e transforma a lacuna em contexto recuperável pela busca
 semântica — o agente RAG pode responder que a seção não existe no documento, em vez de
 preencher a lacuna sozinho (alucinação) ou simplesmente não encontrar nada e admitir
 ausência sem explicação.
+
+## 2026-08-13 — Desvio de branch na Etapa 2: commits feitos na `main` em vez de `feature/documentos`
+
+O `PLANO_EXECUCAO.md` determina que cada etapa seja desenvolvida em sua própria branch —
+a Etapa 2 (conversão dos documentos) deveria ter sido feita em `feature/documentos`. Os
+commits da Etapa 2 (`cd80c68` — adição dos 14 PDFs e tabela de proveniência; `9211e4a` —
+conversão dos 14 PDFs para Markdown) foram feitos diretamente na `main`. `git branch -a`
+confirma que só existe a branch `main`, local e no remoto — nunca houve
+`feature/documentos`. O desvio foi identificado em 13/08/2026, com os dois commits já
+publicados no GitHub (repositório público).
+
+**Decisão:** não reescrever o histórico do repositório público por causa disso —
+`git rebase`/`filter-branch` sobre commits já publicados publicamente reescreveria a
+árvore de commits para qualquer colaborador ou avaliador que já tenha clonado ou
+observado o repositório, um custo desproporcional ao problema (a branch é uma
+convenção de organização do próprio plano, não um requisito do enunciado do desafio).
+Registrar o desvio aqui e retomar a convenção de branch por etapa a partir da Etapa 3,
+usando `feature/ingestao` conforme o plano.
+
+**Justificativa:** reescrever histórico público é uma operação destrutiva e visível
+para terceiros, desproporcional ao ganho (a Etapa 2 já está commitada e funcional na
+`main`, que é a branch de entrega final de qualquer forma — o conteúdo não está errado,
+só a organização do histórico). Seguir a convenção a partir de agora resolve o desvio
+para as etapas futuras sem gerar o risco de uma reescrita de histórico público.
+
+## 2026-08-13 — Notas de transcrição para os 3 achados de coerência aritmética
+
+A varredura de coerência aritmética de 13/08/2026 encontrou 3 contas que não fecham,
+todas já presentes no PDF de origem (não introduzidas pela conversão):
+
+1. `santo-pegasus-protocolo-incidentes-sre.md` — o orçamento de erro do SLO (linha
+   149) está escrito como "43 minutos e 12 segundos", mas 0,1% de 730 horas equivale a
+   43 minutos e 48 segundos.
+2. `mercado-central-fornecedores-compras.md` — as faixas de temperatura ideal
+   (linhas 216–220) se sobrepõem em dois pontos: Carnes e Aves (0°C a 4°C) com
+   Laticínios (2°C a 8°C) entre 2°C e 4°C, e Laticínios com Hortifrúti (6°C a 10°C)
+   entre 6°C e 8°C — um mesmo produto se enquadra em duas categorias com tolerâncias
+   máximas diferentes.
+3. `mercado-central-fornecedores-compras.md` — a fórmula do NFP (linha 47) não tem
+   parênteses envolvendo a soma antes do `× 10`; lida literalmente, o `× 10` multiplica
+   só a parcela de Capacidade, não o total, o que não produz a escala de 0 a 100 que as
+   faixas de classificação do mesmo documento exigem.
+
+Inseri uma nota logo após cada elemento afetado (parágrafo, tabela ou fórmula), como
+texto Markdown normal fora do elemento, registrando a conta correta ao lado da
+transcrita. **Nenhum valor foi corrigido** dentro de tabelas, fórmulas ou parágrafos —
+os três continuam idênticos ao PDF de origem.
+
+**Justificativa:** os três são defeitos do documento de origem, não da conversão — a
+conta errada já estava no PDF antes de qualquer transcrição. Corrigir silenciosamente
+apagaria o registro de que a fonte tem um erro e faria o Markdown divergir do PDF sem
+motivo de fidelidade. Marcar e não corrigir permite que o agente RAG, ao responder,
+cite a inconsistência (e a conta certa, se perguntado) em vez de escolher sozinho qual
+dos dois números — o do documento ou o matematicamente correto — apresentar como
+resposta.

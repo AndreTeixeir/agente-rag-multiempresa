@@ -148,6 +148,10 @@ A confiabilidade não é um sentimento; é uma equação matemática que traduz 
 
 Gestão de Error Budgets (O freio da Engenharia): Se o SLO é 99,9%, significa que aceitamos 0,1% de falha. Em um mês (730 horas), isso equivale a um "Orçamento de Erro" de exatamente 43 minutos e 12 segundos de indisponibilidade permitida.
 
+> **Nota de transcrição:** o documento de origem informa 43 minutos e 12
+> segundos, mas 0,1% de 730 horas equivale a 43 minutos e 48 segundos. O
+> valor foi transcrito como está no original.
+
 Este orçamento é a moeda de troca para inovar. Cada deploy traz risco e "gasta" um pouco deste orçamento. Se uma sequência de bad deploys esgota esses 43 minutos (um burn rate excessivo), aciona-se a política mais radical da cultura SRE: o Feature Freeze (Congelamento de Lançamentos). Durante um Feature Freeze, a diretoria de produto não pode exigir o lançamento de novas funcionalidades de negócio. 100% da capacidade produtiva dos desenvolvedores é redirecionada por decreto para o pagamento de débitos técnicos, automação de testes de estresse e otimização de queries de banco de dados, até que o Orçamento de Erro seja recuperado na janela de 30 dias. A confiabilidade sempre vence a velocidade de mercado.
 
 ## 10. Cultura 5 Porquês, O Post-Mortem e a Notificação à ANPD

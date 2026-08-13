@@ -46,6 +46,12 @@ Para eliminar subjetividade no processo de seleção e renovação contratual, o
 
 Fórmula de cálculo: NFP = (Nota Qualidade × 0,35) + (Nota Preço × 0,25) + (Nota Pontualidade × 0,25) + (Nota Capacidade × 0,15) × 10
 
+> **Nota de transcrição:** a fórmula do documento de origem não tem
+> parênteses envolvendo a soma antes do `× 10`. Lida literalmente, o `× 10`
+> multiplica apenas a parcela de Capacidade, não o total — o que não produz a
+> escala de 0 a 100 que as faixas de classificação do próprio documento
+> exigem. A fórmula foi transcrita como está no original.
+
 Faixas de Classificação Resultante:
 
 - 90 a 100 pontos: Fornecedor Ouro — prioridade em novas negociações e exclusividades.
@@ -218,6 +224,13 @@ Tabela de Temperaturas Ideais por Categoria de Produto:
 | Refrigerados — Laticínios e Derivados | 2°C a 8°C | Até 10°C |
 | Refrigerados — Hortifrúti (frutas e verduras sensíveis) | 6°C a 10°C | Até 12°C |
 | Produtos de Temperatura Ambiente Controlada | 15°C a 25°C | Até 28°C em dias de pico de calor |
+
+> **Nota de transcrição:** as faixas de temperatura do documento de origem se
+> sobrepõem em dois pontos — Carnes e Aves (0°C a 4°C) com Laticínios (2°C a
+> 8°C) na faixa de 2°C a 4°C, e Laticínios com Hortifrúti (6°C a 10°C) na
+> faixa de 6°C a 8°C. Nessas faixas, um mesmo produto se enquadra em duas
+> categorias com tolerâncias máximas diferentes, e o documento não define
+> qual prevalece. Os valores foram transcritos como estão no original.
 
 Integridade da Embalagem: Embalagens rasgadas, amassadas, com sinais de umidade, oxidação ou violação do selo de segurança serão recusadas integralmente, independentemente da temperatura registrada.
 
