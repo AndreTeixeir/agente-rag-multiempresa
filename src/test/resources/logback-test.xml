@@ -1,0 +1,16 @@
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Só para o teste diagnóstico de embeddings (@Tag("llm")): expõe request/response
+         HTTP completos, incluindo cabeçalhos, do único momento em que este projeto
+         chama uma API paga em teste. -->
+    <logger name="dev.langchain4j" level="DEBUG"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

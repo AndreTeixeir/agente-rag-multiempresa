@@ -2,15 +2,56 @@ spring:
   application:
     name: agente-rag
   datasource:
-    url: jdbc:postgresql://localhost:5434/agenterag
-    username: rag
-    password: rag
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/agenterag}
+    username: ${DB_USERNAME:rag}
+    password: ${DB_PASSWORD:rag}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
+      # Schema é gerenciado pelo Flyway (src/main/resources/db/migration), não
+      # pelo Hibernate — não há entidade JPA para a tabela document_chunks
+      # (o pgvector é acessado via JDBC direto), então não há o que validar.
       ddl-auto: validate
 
 management:
   endpoint:
     health:
       show-details: always
+
+app:
+  ingestao:
+    embedding:
+      # Chave nunca em texto puro no repositório público — só a variável.
+      api-key: ${GEMINI_API_KEY}
+      model-name: gemini-embedding-001
+      # 768, não o padrão de 3072 do modelo — precisa bater com vector(768)
+      # da migração V1__chunks_iniciais.sql. Ver docs/DECISOES.md (11/08/2026).
+      output-dimensionality: 768
+    chunking:
+      # ~1000 caracteres ≈ 250 tokens (regra prática de ~4 caracteres/token),
+      # bem abaixo do limite de entrada de 2048 tokens do gemini-embedding-001
+      # (usa ~12% do limite, com folga para a imprecisão dessa estimativa por
+      # caracteres — não temos tokenizador do Gemini no classpath para contar
+      # tokens de verdade). Chunk pequeno também favorece precisão de
+      # recuperação nesses documentos, que são majoritariamente FAQ/tabela.
+      max-segment-size-chars: 1000
+      # 20% de overlap — preserva contexto entre chunks vizinhos (ex.: uma
+      # regra que continua no chunk seguinte) sem duplicar demais o conteúdo
+      # armazenado.
+      max-overlap-size-chars: 200
+      # hybrid (padrão, decisão confirmada) divide por cabeçalho antes do
+      # chunking recursivo — é o que permite preencher o metadado "secao".
+      # recursive é a linha de base para comparação da Etapa 4.3 do plano;
+      # nunca trocar o padrão sem decisão explícita.
+      strategy: hybrid
+    vector-store:
+      table: document_chunks
+    # Pausa entre a ingestão de um documento e o próximo, em milissegundos.
+    # 0 = sem pausa.
+    # A cota do free tier é de 100 requisições por minuto no endpoint de
+    # embeddings (quotaId EmbedContentRequestsPerMinutePerUserPerProjectPerModel-FreeTier),
+    # e o Google conta por conteúdo embedado, não por requisição HTTP — um
+    # documento de 60 chunks consome 60 unidades. Como nenhum documento passa
+    # de 66 chunks, um documento por minuto cabe na cota.
+    # 65000 = 65 segundos, cinco a mais que a janela, por margem.
+    pausa-entre-chamadas-ms: 65000
