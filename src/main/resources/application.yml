@@ -1,4 +1,12 @@
 spring:
+  config:
+    # Sufixo [.properties] obrigatório: o Spring escolhe o parser pela
+    # extensão do arquivo, e ".env" não é reconhecida — sem o sufixo, o
+    # prefixo "optional:" faz o arquivo ser ignorado em silêncio, sem erro
+    # nenhum no boot (confirmado empiricamente na Etapa 4.2a: com
+    # "optional:file:.env" puro, GEMINI_API_KEY chegava ao Google como o
+    # literal "${GEMINI_API_KEY}" e a API respondia API_KEY_INVALID).
+    import: optional:file:.env[.properties]
   application:
     name: agente-rag
   datasource:
