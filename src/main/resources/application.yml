@@ -63,3 +63,27 @@ app:
     # de 66 chunks, um documento por minuto cabe na cota.
     # 65000 = 65 segundos, cinco a mais que a janela, por margem.
     pausa-entre-chamadas-ms: 65000
+  resposta:
+    chat:
+      # Mesma variável de ambiente do embedding — carrega via spring.config.import
+      # (ver comentário no topo deste arquivo).
+      api-key: ${GEMINI_API_KEY}
+      # Fixado explicitamente (CLAUDE.md) — não trocar por alias genérico.
+      model-name: gemini-3.6-flash
+    # Quantos chunks recuperados entram no contexto do prompt.
+    limit: 5
+    # Limiar de score de cosseno (0 a 1) para um chunk ser considerado
+    # relevante o suficiente para entrar no contexto — MEDIDO, não chutado.
+    # Fonte: harness da Etapa 4.2a (AvaliacaoRetrievalHarnessTest) contra os
+    # 719 chunks reais, ver ~/Downloads/relatorios-agente-rag/2026-08-17-etapa-4-2a-conclusao.md.
+    # O maior score entre os casos claramente fora de escopo foi 0.6397
+    # (colisão de prazo de reembolso perguntada à Santo Pegasus, que não tem
+    # esse conceito). O menor score entre os fatos com resposta legítima foi
+    # 0.7201 (porta do ai-assistant-service, Santo Pegasus). 0.68 fica entre
+    # os dois, com folga para ambos os lados. Ressalva já registrada no
+    # relatório da 4.2a: essa separação NÃO é limpa em todo o conjunto —
+    # alguns casos sem resposta real (ex.: CNPJ inexistente da BimBam, score
+    # 0.7759) ficam acima deste limiar por serem topicamente relacionados;
+    # é por isso que a Etapa 4.2b ainda depende do prompt de sistema (COMPORTA
+    # 2) para admitir ausência mesmo quando o limiar sozinho deixa passar.
+    threshold: 0.68

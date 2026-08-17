@@ -86,6 +86,16 @@
 			<version>1.18.1-beta28</version>
 		</dependency>
 		<dependency>
+			<!-- Chat model (GoogleAiGeminiChatModel) — já era resolvida transitivamente
+			     pelo starter acima, na mesma versão 1.18.1 do langchain4j-core.
+			     Declarada explicitamente aqui porque a Etapa 4.2b passa a usar suas
+			     classes diretamente (composição manual, sem AiServices) — nenhuma
+			     versão foi alterada, só tornada explícita. -->
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-google-ai-gemini</artifactId>
+			<version>1.18.1</version>
+		</dependency>
+		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-pgvector</artifactId>
 			<version>1.18.1-beta28</version>
