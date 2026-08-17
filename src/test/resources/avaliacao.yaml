@@ -1,0 +1,446 @@
+# Conjunto de avaliação — Etapa 4.1 do PLANO_EXECUCAO.md
+#
+# Todo fato_chave_esperado e todo trecho_literal foi lido diretamente dos arquivos
+# .md em src/main/resources/documentos/md/ (ou copiado de docs/FATOS_VERIFICADOS.md,
+# que já os leu do mesmo lugar). Nenhum valor foi presumido ou completado por
+# conhecimento geral — ver docs/FATOS_VERIFICADOS.md e docs/DECISOES.md.
+#
+# Referência por documento + seção, NUNCA por id de chunk: o UUID de cada chunk
+# muda a cada reingestão (INSERT novo em PgVectorStore), então um teste que fixasse
+# um UUID quebraria no primeiro --force. `secao_esperada` usa o texto exato do
+# cabeçalho Markdown (sem o `#`), porque é literalmente o que
+# HybridChunkingStrategy.dividirPorSecao() grava no metadado `secao` de cada chunk
+# (estratégia padrão, ver application.yml: app.ingestao.chunking.strategy=hybrid) —
+# então esse campo pode ser comparado direto contra o metadado retornado pela busca,
+# não é só documentação solta. `documento_esperado` é o nome de arquivo exato
+# (metadado `documento`, ver IngestionService#ingerirDocumento). `empresa` usa os
+# mesmos valores gravados pelo IngestionService (PREFIXO_EMPRESA): bimbam,
+# mercado-central, santo-pegasus — não "BimBam Buy" nem "Mercado Central 24h".
+#
+# Quatro categorias:
+#
+# 1. fatos_precisos — pergunta com resposta única e verificável. Cobre as tabelas
+#    críticas da Etapa 2 (temperaturas, prazos de pagamento, níveis VIP, SPPF,
+#    matriz SEV, microsserviços com portas) e pelo menos um fato de cada um dos
+#    14 documentos-fonte.
+#
+# 2. colisoes_entre_empresas — mesma pergunta_base, uma lista `respostas` com uma
+#    entrada por empresa. Quando a empresa não tem resposta (o conceito não existe
+#    nos documentos dela), a entrada não tem fato_chave_esperado — tem
+#    comportamento_esperado: recusa e um motivo. Isso testa o isolamento entre
+#    tenants: se o filtro por `empresa` vazar, é aqui que uma resposta da empresa
+#    errada aparece.
+#
+# 3. fora_de_escopo — pergunta que deve produzir admissão de ausência, nunca
+#    invenção. As seções 12–15 do índice de santo-pegasus-arquitetura-microsservicos.md
+#    entram como 4 casos individuais (não 1), porque são o teste mais valioso desta
+#    categoria: o índice MENCIONA a seção, a busca semântica vai recuperar algo (o
+#    próprio índice, ou a nota de transcrição), e o agente precisa perceber que não
+#    há conteúdo por trás — não é o mesmo teste que "capital da França", onde não há
+#    nada nem remotamente relacionado para recuperar.
+#
+# 4. ambiguidades_e_defeitos — categoria adicional, fora do PLANO_EXECUCAO.md
+#    original. Pergunta cuja resposta CORRETA é apontar uma inconsistência do
+#    documento-fonte, não escolher um dos dois valores. Reprovar aqui não é a
+#    mesma coisa que reprovar em fora_de_escopo: a informação existe, é
+#    literalmente encontrável, e o defeito é do PDF de origem (confirmado por dois
+#    extratores independentes — ver docs/DECISOES.md) — a métrica de sucesso é o
+#    agente citar as duas fontes/números e admitir a divergência, não recusar por
+#    completo nem inventar uma terceira resposta que concilie as duas.
+
+fatos_precisos:
+
+  - id: bimbam-arrependimento-prazo
+    empresa: bimbam
+    pergunta: "Qual o prazo para o cliente da BimBam Buy desistir da compra por arrependimento?"
+    documento_esperado: bimbam-reembolsos-devolucoes.md
+    secao_esperada: "5.1 Arrependimento de compra"
+    fato_chave_esperado: "10 dias corridos a partir do recebimento do pedido"
+    trecho_literal: |-
+      O cliente pode solicitar devolução por arrependimento dentro dos 10 dias corridos subsequentes ao recebimento do pedido, desde que o produto cumpra com os requisitos de elegibilidade.
+
+  - id: bimbam-reembolso-prazo-processamento
+    empresa: bimbam
+    pergunta: "Depois de aprovado, em quanto tempo o reembolso é processado na BimBam Buy?"
+    documento_esperado: bimbam-reembolsos-devolucoes.md
+    secao_esperada: "5.4 Reembolso aprovado"
+    fato_chave_esperado: "5 a 10 dias úteis, dependendo do método de pagamento e do país de origem da compra"
+    trecho_literal: |-
+      Uma vez aprovado, o reembolso é processado em um prazo de 5 a 10 dias úteis, dependendo do método de pagamento e do país de origem da compra.
+
+  - id: bimbam-garantia-prazo
+    empresa: bimbam
+    pergunta: "Qual o prazo de garantia dos produtos da BimBam Buy?"
+    documento_esperado: bimbam-garantia-produtos.md
+    secao_esperada: "5. Prazos de garantia"
+    fato_chave_esperado: "não é um prazo único fixo — varia por tipo de produto, categoria e país; o prazo aplicável é o informado na ficha do produto ou na confirmação de compra"
+    trecho_literal: |-
+      O prazo de garantia pode variar de acordo com o tipo de produto, categoria e país. O prazo aplicável será o informado na ficha do produto ou na confirmação de compra.
+
+  - id: bimbam-metodos-pagamento
+    empresa: bimbam
+    pergunta: "Quais métodos de pagamento a BimBam Buy aceita?"
+    documento_esperado: bimbam-faq-metodos-pagamento.md
+    secao_esperada: "3. Métodos de pagamento disponíveis"
+    fato_chave_esperado: "cartão de crédito, cartão de débito, transferência bancária/PIX, boleto, carteiras digitais e parcelamento/financiamento, conforme país"
+    trecho_literal: |-
+      - Cartão de crédito
+      - Cartão de débito
+      - Transferência bancária / PIX
+      - Pagamento em dinheiro em pontos habilitados (ex: Boleto)
+      - Carteiras digitais disponíveis por país
+      - Parcelamento ou financiamento, quando aplicável
+
+  - id: bimbam-envio-prazo-areas-urbanas
+    empresa: bimbam
+    pergunta: "Qual o prazo estimado de entrega da BimBam Buy em áreas urbanas principais?"
+    documento_esperado: bimbam-prazos-custos-envio.md
+    secao_esperada: "5.2 Entrega estimada"
+    fato_chave_esperado: "2 a 5 dias úteis"
+    trecho_literal: |-
+      Áreas urbanas principais: 2 a 5 dias úteis
+
+  - id: bimbam-afiliados-comissao-variavel
+    empresa: bimbam
+    pergunta: "Qual o percentual de comissão do Programa de Afiliados da BimBam Buy?"
+    documento_esperado: bimbam-programa-afiliados.md
+    secao_esperada: "7. Comissões"
+    fato_chave_esperado: "não há percentual único fixo — varia por categoria de produto, país, campanha, margem e tipo de afiliado"
+    trecho_literal: |-
+      As comissões podem variar de acordo com:
+
+      - Categoria de produto
+      - País
+      - Campanha
+      - Margem
+      - Tipo de afiliado
+
+      A BimBam Buy pode definir porcentagens diferentes para certas linhas ou promoções.
+
+  - id: mercado-central-temperatura-congelados
+    empresa: mercado-central
+    pergunta: "Qual a faixa de temperatura ideal e a tolerância máxima para produtos congelados no Mercado Central 24h?"
+    documento_esperado: mercado-central-fornecedores-compras.md
+    secao_esperada: "5.4 Checagem de Temperatura e Qualidade"
+    fato_chave_esperado: "igual ou inferior a -18°C ideal; tolerância máxima até -12°C (recusa abaixo disso)"
+    trecho_literal: |-
+      | Congelados (carnes, pescados, sorvetes) | Igual ou inferior a -18°C | Até -12°C (recusa abaixo disso) |
+
+  - id: mercado-central-prazo-pagamento-pereciveis
+    empresa: mercado-central
+    pergunta: "Qual o prazo de pagamento a fornecedores de perecíveis Classe A no Mercado Central 24h?"
+    documento_esperado: mercado-central-fornecedores-compras.md
+    secao_esperada: "8.1 Prazos Padrão por Categoria de Fornecedor"
+    fato_chave_esperado: "07 dias para Classe A (Classe B: 10 dias; Classe C: 14 dias)"
+    trecho_literal: |-
+      | Perecíveis (Horti/Carnes) | 07 dias | 10 dias | 14 dias |
+
+  - id: mercado-central-vip-diamante
+    empresa: mercado-central
+    pergunta: "Quais os benefícios do nível Diamante do Programa Cliente VIP Central?"
+    documento_esperado: mercado-central-atendimento-trocas-devolucoes.md
+    secao_esperada: "8.3. Tabela de Níveis do Programa de Fidelidade"
+    fato_chave_esperado: "7.000 pontos ou mais em 12 meses; cashback de 2,0%; todos os benefícios anteriores + SAC dedicado + frete grátis ilimitado no App"
+    trecho_literal: |-
+      | Diamante | 7.000 pontos ou mais | 2,0% | Todos os benefícios anteriores + Atendimento SAC dedicado (linha direta) + Frete grátis ilimitado no App |
+
+  - id: mercado-central-sppf-pesos
+    empresa: mercado-central
+    pergunta: "Quais são os critérios e pesos do SPPF (Sistema de Pontuação Ponderada de Fornecedores) do Mercado Central 24h?"
+    documento_esperado: mercado-central-fornecedores-compras.md
+    secao_esperada: "1.1 Critérios de Seleção com Sistema de Pontuação"
+    fato_chave_esperado: "Qualidade 35%, Preço 25%, Pontualidade (OTIF) 25%, Capacidade de Fornecimento 15%"
+    trecho_literal: |-
+      | Qualidade | 35% | Conformidade sanitária, ausência de reclamações, consistência de lote a lote, certificações (ISO, BPF, HACCP). |
+      | Preço | 25% | Competitividade frente à média de mercado, histórico de reajustes, transparência na formação de preço. |
+      | Pontualidade (OTIF) | 25% | Percentual de entregas realizadas na data e quantidade acordadas, sem necessidade de reagendamento. |
+      | Capacidade de Fornecimento | 15% | Volume disponível para picos de demanda (feriados, promoções), redundância logística e estoque de segurança. |
+
+  - id: mercado-central-cnpj
+    empresa: mercado-central
+    pergunta: "Qual o CNPJ do Mercado Central 24h?"
+    documento_esperado: mercado-central-regulamento-procedimentos-sop.md
+    secao_esperada: "REGULAMENTO INTERNO E MANUAL DE PROCEDIMENTOS OPERACIONAIS (SOP)"
+    fato_chave_esperado: "00.123.456/0001-99"
+    trecho_literal: |-
+      - CNPJ: 00.123.456/0001-99
+
+  - id: mercado-central-horario-funcionamento
+    empresa: mercado-central
+    pergunta: "Qual o horário de funcionamento das lojas do Mercado Central 24h?"
+    documento_esperado: mercado-central-faq.md
+    secao_esperada: "2.1. Funcionamento e Infraestrutura"
+    fato_chave_esperado: "24 horas por dia, 7 dias por semana, inclusive feriados nacionais e locais"
+    trecho_literal: |-
+      Como o nome indica, funcionamos 24 horas por dia, 7 dias por semana, inclusive em feriados nacionais e locais.
+
+  - id: mercado-central-antecipacao-recebiveis-taxa
+    empresa: mercado-central
+    pergunta: "Qual a taxa de desconto financeiro para antecipação de recebíveis dos fornecedores do Mercado Central 24h?"
+    documento_esperado: mercado-central-fornecedores-compras.md
+    secao_esperada: "9.1 Condições Gerais"
+    fato_chave_esperado: "2,5% ao mês, em regime pro-rata die"
+    trecho_literal: |-
+      Taxa aplicada: 2,5% ao mês, calculada em regime pro-rata die (proporcional ao número de dias antecipados).
+
+  - id: santo-pegasus-sev1-impacto-financeiro
+    empresa: santo-pegasus
+    pergunta: "Qual o impacto financeiro por hora que caracteriza um incidente SEV-1 na Santo Pegasus?"
+    documento_esperado: santo-pegasus-protocolo-incidentes-sre.md
+    secao_esperada: "SEV-1 (Crítico - Intervenção Imediata e Total)"
+    fato_chave_esperado: "projetado acima de R$ 100.000 por hora de inatividade"
+    trecho_literal: |-
+      Impacto Financeiro: Projetado acima de R$ 100.000 por hora de inatividade devido a cirurgias canceladas, glosas médicas e impossibilidade de faturamento.
+
+  - id: santo-pegasus-porta-ai-assistant-service
+    empresa: santo-pegasus
+    pergunta: "Em qual porta roda o ai-assistant-service da Santo Pegasus?"
+    documento_esperado: santo-pegasus-arquitetura-microsservicos.md
+    secao_esperada: "3.1 Resumo do Catálogo"
+    fato_chave_esperado: "porta 8087"
+    trecho_literal: |-
+      | ai-assistant-service | 8087 | Assistência IA (RAG) | Pinecone (Vector) | Squad IA |
+
+  - id: santo-pegasus-descanso-minimo-oncall
+    empresa: santo-pegasus
+    pergunta: "Qual o período mínimo de descanso exigido após um engenheiro on-call da Santo Pegasus ser acionado de madrugada?"
+    documento_esperado: santo-pegasus-protocolo-incidentes-sre.md
+    secao_esperada: "6. Política de On-Call, Conformidade com a CLT e Saúde Mental Sustentável"
+    fato_chave_esperado: "11 horas de repouso consecutivo (Art. 66 da CLT)"
+    trecho_literal: |-
+      A política dita que ele tenha um período mínimo de 11 horas de repouso consecutivo (Art. 66 da CLT) antes de retomar atividades rotineiras.
+
+  - id: santo-pegasus-ferias-dias
+    empresa: santo-pegasus
+    pergunta: "Quantos dias de férias um colaborador CLT da Santo Pegasus tem direito após completar 12 meses?"
+    documento_esperado: santo-pegasus-manual-onboarding.md
+    secao_esperada: "Política de Férias (CLT)"
+    fato_chave_esperado: "30 dias corridos"
+    trecho_literal: |-
+      Conforme a legislação brasileira, todo colaborador CLT tem direito a 30 dias corridos de férias após completar 12 meses de trabalho (período aquisitivo).
+
+  - id: santo-pegasus-virtual-threads-java21
+    empresa: santo-pegasus
+    pergunta: "O que o guia de engenharia back-end da Santo Pegasus diz sobre Virtual Threads do Java 21?"
+    documento_esperado: santo-pegasus-guia-engenharia-backend.md
+    secao_esperada: "3.1. Java 17/21: O Novo Padrão"
+    fato_chave_esperado: "usadas para serviços de alto throughput, permitindo escalar a execução concorrente sem sobrecarregar o SO"
+    trecho_literal: |-
+      Virtual Threads (Java 21): Para serviços de alto throughput, permitindo escalar a execução concorrente sem sobrecarregar o SO.
+
+  - id: santo-pegasus-nextjs-vs-vite-regra
+    empresa: santo-pegasus
+    pergunta: "Segundo o guia de engenharia front-end da Santo Pegasus, quando usar Next.js e quando usar Vite?"
+    documento_esperado: santo-pegasus-guia-engenharia-frontend.md
+    secao_esperada: "3.1. Critérios de Decisão: Next.js vs Vite"
+    fato_chave_esperado: "Next.js para produto acessado por usuários anônimos via mecanismos de busca; Vite para ferramenta interna autenticada sem necessidade de indexação"
+    trecho_literal: |-
+      Regra prática: se o produto será acessado por usuários anônimos via mecanismos de busca (marketing, landing pages, portal do cliente), utilize Next.js. Se o produto é uma ferramenta interna, autenticada, sem necessidade de indexação (ex: painel administrativo, dashboard de operações), utilize Vite.
+
+colisoes_entre_empresas:
+
+  - id: colisao-prazo-arrependimento
+    pergunta_base: "Qual o prazo para desistir da compra por arrependimento?"
+    respostas:
+      - empresa: bimbam
+        documento_esperado: bimbam-reembolsos-devolucoes.md
+        secao_esperada: "5.1 Arrependimento de compra"
+        fato_chave_esperado: "10 dias corridos após o recebimento"
+        trecho_literal: |-
+          O cliente pode solicitar devolução por arrependimento dentro dos 10 dias corridos subsequentes ao recebimento do pedido, desde que o produto cumpra com os requisitos de elegibilidade.
+      - empresa: mercado-central
+        documento_esperado: mercado-central-atendimento-trocas-devolucoes.md
+        secao_esperada: "4.1. Prazo de Reflexão"
+        fato_chave_esperado: "7 dias corridos, com base no Art. 49 do CDC"
+        trecho_literal: |-
+          Conforme o Art. 49 do CDC, o consumidor tem o prazo de 7 (sete) dias corridos, a contar do recebimento do produto, para desistir da compra.
+      - empresa: santo-pegasus
+        comportamento_esperado: recusa
+        motivo: "o conceito de 'arrependimento de compra' não existe em nenhum dos 5 documentos da Santo Pegasus (0 ocorrências) — a empresa não vende produtos ao consumidor final"
+
+  - id: colisao-prazo-reembolso-estorno
+    pergunta_base: "Depois de aprovado, em quanto tempo o reembolso é processado?"
+    respostas:
+      - empresa: bimbam
+        documento_esperado: bimbam-reembolsos-devolucoes.md
+        secao_esperada: "5.4 Reembolso aprovado"
+        fato_chave_esperado: "5 a 10 dias úteis — prazo único"
+        trecho_literal: |-
+          Uma vez aprovado, o reembolso é processado em um prazo de 5 a 10 dias úteis, dependendo do método de pagamento e do país de origem da compra.
+      - empresa: mercado-central
+        documento_esperado: mercado-central-atendimento-trocas-devolucoes.md
+        secao_esperada: "5. PROCEDIMENTOS DE REEMBOLSO E ESTORNO"
+        fato_chave_esperado: "prazo composto, não um número único — estorno em cartão de crédito enviado à administradora em até 5 dias úteis, crédito aparece em até 2 faturas subsequentes; PIX em até 24h úteis; dinheiro/débito em até 48h"
+        trecho_literal: |-
+          1. Cartão de Crédito: A solicitação de estorno é enviada à administradora em até 5 dias úteis. O crédito poderá aparecer em até duas faturas subsequentes, dependendo do fechamento do cartão.
+          2. PIX: O reembolso será efetuado na conta de origem em até 24 horas úteis após a conferência do produto devolvido.
+          3. Dinheiro/Débito: Reembolso em espécie na loja física ou transferência bancária para conta de mesma titularidade em até 48 horas.
+      - empresa: santo-pegasus
+        comportamento_esperado: recusa
+        motivo: "não há reembolso ao consumidor final — a Santo Pegasus não vende produtos"
+
+  - id: colisao-sla-prazo-resposta
+    pergunta_base: "Qual o SLA de resposta / prazo de resposta ao cliente?"
+    respostas:
+      - empresa: bimbam
+        documento_esperado: bimbam-reembolsos-devolucoes.md
+        secao_esperada: "19. Tempos de resolução"
+        fato_chave_esperado: "não usa o termo 'SLA'; confirmação de recebimento de solicitação em até 24 horas úteis"
+        trecho_literal: |-
+          Aviso de recebimento: imediato ou em até 24 horas úteis
+      - empresa: mercado-central
+        documento_esperado: mercado-central-atendimento-trocas-devolucoes.md
+        secao_esperada: "2.5. E-mail Oficial — Detalhamento Operacional"
+        fato_chave_esperado: "'SLA de Resposta' = retorno humano ao cliente em até 48 horas úteis, podendo se estender a 5 dias úteis em casos que exijam análise jurídica ou fiscal"
+        trecho_literal: |-
+          SLA de Resposta: Retorno humano em até 48 horas úteis, podendo se estender a 5 dias úteis em casos que demandem análise jurídica ou fiscal.
+      - empresa: santo-pegasus
+        documento_esperado: santo-pegasus-protocolo-incidentes-sre.md
+        secao_esperada: "9. Matemática da Confiabilidade e Gestão de Error Budgets (Orçamentos de Erro)"
+        fato_chave_esperado: "'SLA' = disponibilidade contratual de 99,5% do sistema com as redes hospitalares — não é um prazo de resposta a uma pessoa. Ver também ambiguidade-anpd-prazo-notificacao: o prazo de notificação de incidente à ANPD tem dois valores divergentes no mesmo documento."
+        trecho_literal: |-
+          Service Level Agreement (SLA): É o contrato jurídico externo com as redes hospitalares. Fixado em 99,5%.
+
+fora_de_escopo:
+
+  - id: fora-escopo-secao-12-squads
+    empresa: santo-pegasus
+    pergunta: "Qual o mapa de squads e ownership da arquitetura de microsserviços da Santo Pegasus?"
+    documento_mencionado: santo-pegasus-arquitetura-microsservicos.md
+    secao_mencionada_no_indice: "12. Mapa de Squads e Ownership"
+    comportamento_esperado: recusa
+    motivo: "seção listada no índice do documento (Tabla de Conteúdos), mas ausente do corpo — o corpo termina na seção 11. Confirmado por extração completa das 12 páginas físicas do PDF."
+    trecho_literal: |-
+      12. Mapa de Squads e Ownership *(seção não presente no documento de origem)*
+
+  - id: fora-escopo-secao-13-roadmap
+    empresa: santo-pegasus
+    pergunta: "Qual é o roadmap técnico descrito no documento de arquitetura de microsserviços da Santo Pegasus?"
+    documento_mencionado: santo-pegasus-arquitetura-microsservicos.md
+    secao_mencionada_no_indice: "13. Roadmap Técnico"
+    comportamento_esperado: recusa
+    motivo: "seção listada no índice do documento, mas ausente do corpo — o corpo termina na seção 11"
+    trecho_literal: |-
+      13. Roadmap Técnico *(seção não presente no documento de origem)*
+
+  - id: fora-escopo-secao-14-adrs
+    empresa: santo-pegasus
+    pergunta: "Quais são os Architecture Decision Records (ADRs) citados no índice da arquitetura de microsserviços da Santo Pegasus?"
+    documento_mencionado: santo-pegasus-arquitetura-microsservicos.md
+    secao_mencionada_no_indice: "14. Architecture Decision Records (ADRs)"
+    comportamento_esperado: recusa
+    motivo: "seção listada no índice do documento, mas ausente do corpo — o corpo termina na seção 11"
+    trecho_literal: |-
+      14. Architecture Decision Records (ADRs) *(seção não presente no documento de origem)*
+
+  - id: fora-escopo-secao-15-disposicoes-finais
+    empresa: santo-pegasus
+    pergunta: "O que dizem as disposições finais e o processo de atualização do documento de arquitetura de microsserviços da Santo Pegasus?"
+    documento_mencionado: santo-pegasus-arquitetura-microsservicos.md
+    secao_mencionada_no_indice: "15. Disposições Finais e Processo de Atualização"
+    comportamento_esperado: recusa
+    motivo: "seção listada no índice do documento, mas ausente do corpo — o corpo termina na seção 11"
+    trecho_literal: |-
+      15. Disposições Finais e Processo de Atualização *(seção não presente no documento de origem)*
+
+  - id: fora-escopo-faturamento-anual-mc
+    empresa: mercado-central
+    pergunta: "Qual o faturamento anual do Mercado Central 24h?"
+    comportamento_esperado: recusa
+    motivo: "busca por 'faturamento anual', 'faturamento total' e 'receita anual' nos 4 documentos do Mercado Central: 0 ocorrências — o valor não existe em nenhum documento-fonte"
+
+  - id: fora-escopo-capital-franca
+    empresa: qualquer
+    pergunta: "Qual a capital da França?"
+    comportamento_esperado: recusa
+    motivo: "fora do domínio de todos os 14 documentos — busca por 'frança': 0 ocorrências em todo o corpus. Caso de recusa trivial, não relacionado a nenhuma das 3 empresas; deve ser recusado independente de qual empresa estiver fixada na sessão."
+
+  - id: fora-escopo-cnpj-bimbam
+    empresa: bimbam
+    pergunta: "Qual o CNPJ da BimBam Buy?"
+    comportamento_esperado: recusa
+    motivo: "busca por 'CNPJ' + 'BimBam' nos 14 documentos: 0 ocorrências. Contraste: a mesma pergunta tem resposta para o Mercado Central 24h (ver fato mercado-central-cnpj, 00.123.456/0001-99), mas não para a BimBam Buy nem para a Santo Pegasus."
+
+  - id: fora-escopo-cripto-bimbam
+    empresa: bimbam
+    pergunta: "A BimBam Buy aceita pagamento em criptomoeda ou Bitcoin?"
+    documento_esperado: bimbam-faq-metodos-pagamento.md
+    secao_esperada: "3. Métodos de pagamento disponíveis"
+    comportamento_esperado: recusa
+    motivo: "a Seção 3 lista explicitamente os métodos aceitos e criptomoeda não está entre eles; busca por 'criptomoeda'/'bitcoin'/'cripto' nos 14 documentos: 0 ocorrências em contexto de pagamento ao cliente (as 4 ocorrências de 'criptografia' encontradas na Santo Pegasus são sobre segurança de dados em repouso, assunto diferente — não confundir na avaliação)"
+
+ambiguidades_e_defeitos:
+
+  - id: ambiguidade-anpd-prazo-notificacao
+    empresa: santo-pegasus
+    pergunta: "Qual o prazo para notificar a ANPD em caso de incidente de vazamento de dados?"
+    documento_esperado: santo-pegasus-protocolo-incidentes-sre.md
+    comportamento_esperado: apontar_inconsistencia
+    motivo: "mesmo documento, mesmo evento (incidente SEV-1 de vazamento de dados sensíveis), dois números diferentes para o mesmo prazo, em unidades diferentes (horas úteis vs. dias úteis), sem equivalência explicada no texto"
+    trechos_literais:
+      - secao: "SEV-1 (Crítico - Intervenção Imediata e Total)"
+        texto: |-
+          O SLA de notificação à ANPD é de 48 horas úteis, tornando a resposta SEV-1 uma operação com escrutínio legal.
+      - secao: "10. Cultura 5 Porquês, O Post-Mortem e a Notificação à ANPD"
+        texto: |-
+          A lei exige notificação formal e fundamentada à Autoridade Nacional de Proteção de Dados (ANPD) em um prazo estritamente de 2 (dois) dias úteis após a ciência inequívoca do evento.
+
+  - id: ambiguidade-vector-store-santo-pegasus
+    empresa: santo-pegasus
+    pergunta: "Qual banco de dados vetorial o ai-assistant-service da Santo Pegasus usa: Pinecone ou Qdrant?"
+    comportamento_esperado: apontar_inconsistencia
+    motivo: "os documentos divergem: santo-pegasus-arquitetura-microsservicos.md menciona Pinecone em 4 pontos distintos (diagrama, tabela de catálogo, descrição do serviço, infraestrutura AWS); santo-pegasus-guia-engenharia-backend.md menciona Qdrant uma vez. Nenhuma leitura foi escolhida na Etapa 2 — ambas são citadas literalmente."
+    trechos_literais:
+      - documento: santo-pegasus-arquitetura-microsservicos.md
+        secao: "3.8 `ai-assistant-service` — Assistente de IA com Arquitetura RAG"
+        texto: |-
+          Tecnologias: LangChain4j, OpenAI GPT-4o, Pinecone (Vector Store para conhecimento médico), Redis (Cache de respostas).
+      - documento: santo-pegasus-arquitetura-microsservicos.md
+        secao: "3.1 Resumo do Catálogo"
+        texto: |-
+          | ai-assistant-service | 8087 | Assistência IA (RAG) | Pinecone (Vector) | Squad IA |
+      - documento: santo-pegasus-guia-engenharia-backend.md
+        secao: "5.1. Pipeline de Dados"
+        texto: |-
+          Vector Store: Uso de Qdrant em clusters de alta disponibilidade.
+
+  - id: ambiguidade-temperatura-sobreposta
+    empresa: mercado-central
+    pergunta: "Um produto refrigerado chega a 3°C — ele se enquadra na categoria 'Carnes e Aves in natura' ou 'Laticínios e Derivados'?"
+    documento_esperado: mercado-central-fornecedores-compras.md
+    secao_esperada: "5.4 Checagem de Temperatura e Qualidade"
+    comportamento_esperado: apontar_inconsistencia
+    motivo: "as faixas ideais de 'Carnes e Aves in natura' (0°C a 4°C) e 'Laticínios e Derivados' (2°C a 8°C) se sobrepõem entre 2°C e 4°C — um produto a 3°C se enquadra nas duas categorias, que têm tolerâncias máximas diferentes (até 7°C vs. até 10°C), e o documento não define qual prevalece"
+    trechos_literais:
+      - texto: |-
+          | Refrigerados — Carnes e Aves in natura | 0°C a 4°C | Até 7°C |
+      - texto: |-
+          | Refrigerados — Laticínios e Derivados | 2°C a 8°C | Até 10°C |
+      - texto: |-
+          Nota de transcrição: as faixas de temperatura do documento de origem se sobrepõem em dois pontos — Carnes e Aves (0°C a 4°C) com Laticínios (2°C a 8°C) na faixa de 2°C a 4°C, e Laticínios com Hortifrúti (6°C a 10°C) na faixa de 6°C a 8°C. Nessas faixas, um mesmo produto se enquadra em duas categorias com tolerâncias máximas diferentes, e o documento não define qual prevalece. Os valores foram transcritos como estão no original.
+
+  - id: ambiguidade-orcamento-erro-slo
+    empresa: santo-pegasus
+    pergunta: "Quanto é o orçamento de erro (error budget) mensal da Santo Pegasus para um SLO de 99,9%?"
+    documento_esperado: santo-pegasus-protocolo-incidentes-sre.md
+    secao_esperada: "9. Matemática da Confiabilidade e Gestão de Error Budgets (Orçamentos de Erro)"
+    comportamento_esperado: apontar_inconsistencia
+    motivo: "o documento afirma 43 minutos e 12 segundos, mas 0,1% de 730 horas (SLO de 99,9%) equivale matematicamente a 43 minutos e 48 segundos — erro de conta do PDF de origem, já confirmado por varredura de coerência aritmética (ver docs/DECISOES.md) e marcado com nota de transcrição no próprio .md"
+    trechos_literais:
+      - texto: |-
+          Gestão de Error Budgets (O freio da Engenharia): Se o SLO é 99,9%, significa que aceitamos 0,1% de falha. Em um mês (730 horas), isso equivale a um "Orçamento de Erro" de exatamente 43 minutos e 12 segundos de indisponibilidade permitida.
+      - texto: |-
+          Nota de transcrição: o documento de origem informa 43 minutos e 12 segundos, mas 0,1% de 730 horas equivale a 43 minutos e 48 segundos. O valor foi transcrito como está no original.
+
+  - id: ambiguidade-staletime-react-query
+    empresa: santo-pegasus
+    pergunta: "No exemplo de hook do React Query do guia de engenharia front-end da Santo Pegasus, o staleTime está escrito corretamente?"
+    documento_esperado: santo-pegasus-guia-engenharia-frontend.md
+    secao_esperada: "5.2. Exemplo de Hook React Query"
+    comportamento_esperado: apontar_inconsistencia
+    motivo: "o código no PDF de origem está sem o operador de multiplicação (`60 1000` em vez de `60 * 1000`) — sintaticamente inválido como impresso. Confirmado por dois extratores de PDF independentes (geometria de glifo e renderização em pixel): faltam 4 asteriscos no próprio PDF, não é erro de conversão. Já marcado com nota de transcrição no próprio .md."
+    trechos_literais:
+      - texto: |-
+          staleTime: 60 1000, // 1 minuto de cache "fresco"
+      - texto: |-
+          Nota de transcrição: o PDF de origem apresenta este trecho sem o operador `*` (`60 * 1000`). A ausência foi confirmada no documento original — não é erro desta transcrição. O código como impresso não é sintaticamente válido.
