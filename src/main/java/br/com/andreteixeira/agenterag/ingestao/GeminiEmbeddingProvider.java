@@ -60,6 +60,28 @@ public class GeminiEmbeddingProvider implements EmbeddingProvider {
         return normalizeL2(response.embeddings().get(0).vector());
     }
 
+    /**
+     * Mesmo caminho de {@link #embedQuery} (um {@link EmbeddingRequest} com
+     * {@code inputType = QUERY}), mas com todos os textos no mesmo request —
+     * {@link EmbeddingRequest.Builder#inputs(String...)} aceita a lista
+     * inteira, e {@code GoogleAiEmbeddingModel} já fatia isso internamente em
+     * lotes de até 100 segmentos por chamada HTTP
+     * ({@code MAX_NUMBER_OF_SEGMENTS_PER_BATCH}, confirmado lendo o fonte da
+     * lib) — não precisa de laço aqui.
+     */
+    @Override
+    public List<float[]> embedQueries(List<String> textos) {
+        if (textos.isEmpty()) {
+            return List.of();
+        }
+        EmbeddingRequest request = EmbeddingRequest.builder()
+                .inputs(textos.toArray(new String[0]))
+                .inputType(EmbeddingInputType.QUERY)
+                .build();
+        EmbeddingResponse response = model.embed(request);
+        return response.embeddings().stream().map(e -> normalizeL2(e.vector())).toList();
+    }
+
     @Override
     public int dimension() {
         return dimension;

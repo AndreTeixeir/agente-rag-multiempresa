@@ -28,6 +28,20 @@ public interface EmbeddingProvider {
     float[] embedQuery(String texto);
 
     /**
+     * Embeda um lote de consultas de uma vez, com o mesmo task type de
+     * {@link #embedQuery} (RETRIEVAL_QUERY) — não confundir com
+     * {@link #embedDocuments}, que usa RETRIEVAL_DOCUMENT.
+     * <p>
+     * Existe só para o harness de avaliação (Etapa 4 do plano), que precisa
+     * embedar dezenas de perguntas do conjunto de teste sem gastar uma
+     * chamada HTTP por pergunta. O chat real nunca usa este método — uma
+     * sessão sempre tem uma pergunta de cada vez, e é para isso que
+     * {@link #embedQuery} continua existindo e continua sendo o caminho
+     * único de produção.
+     */
+    List<float[]> embedQueries(List<String> textos);
+
+    /**
      * Dimensão dos vetores retornados por ambos os métodos acima.
      */
     int dimension();
