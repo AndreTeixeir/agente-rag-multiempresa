@@ -87,3 +87,23 @@ app:
     # é por isso que a Etapa 4.2b ainda depende do prompt de sistema (COMPORTA
     # 2) para admitir ausência mesmo quando o limiar sozinho deixa passar.
     threshold: 0.68
+
+---
+# Profile "recursivo" (Etapa 4.3 — decisão de chunking por medição): só troca a
+# estratégia de chunking e a tabela de destino. Tudo o mais (datasource, chave de
+# API, dimensão, pausa entre chamadas) continua herdado do documento acima — é
+# assim que a configuração padrão da aplicação (sem este profile) segue apontando
+# para "document_chunks"/"hybrid", e o híbrido continua sendo o caminho normal.
+# Ativar junto com o profile "ingest" para rodar a ingestão de fato:
+#   --spring.profiles.active=ingest,recursivo
+spring:
+  config:
+    activate:
+      on-profile: recursivo
+app:
+  ingestao:
+    chunking:
+      strategy: recursive
+    vector-store:
+      # Tabela separada — ver V2__chunks_recursivo.sql. Nunca "document_chunks".
+      table: document_chunks_recursive
