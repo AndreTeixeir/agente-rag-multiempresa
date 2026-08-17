@@ -1,10 +1,13 @@
 package br.com.andreteixeira.agenterag.ingestao;
 
+import com.pgvector.PGvector;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import javax.sql.DataSource;
 
 /**
@@ -52,6 +55,48 @@ public class PgVectorStore implements VectorStore {
     @Override
     public long countByDocumento(String documento) {
         return countWhere("documento", documento);
+    }
+
+    /**
+     * {@code score} é a similaridade de cosseno ({@code 1 - distância}) — o
+     * operador {@code <=>} do pgvector devolve distância, não similaridade.
+     * A expressão de score aparece três vezes na consulta (SELECT, filtro de
+     * limiar e ORDER BY) de propósito: manter o {@code ORDER BY} na expressão
+     * bruta sobre a coluna indexada é o que deixa a consulta elegível para o
+     * índice HNSW quando o volume crescer (ver relatório da Etapa 3 — no
+     * volume atual de 719 chunks o otimizador prefere sequential scan, e isso
+     * é esperado, não defeito).
+     */
+    @Override
+    public List<SearchResult> search(String empresa, float[] queryEmbedding, int limit, double threshold) {
+        String sql = "SELECT text, documento, secao, 1 - (embedding <=> ?) AS score "
+                + "FROM " + table + " "
+                + "WHERE empresa = ? AND 1 - (embedding <=> ?) >= ? "
+                + "ORDER BY embedding <=> ? "
+                + "LIMIT ?";
+        try (var connection = dataSource.getConnection();
+                var statement = connection.prepareStatement(sql)) {
+            PGvector vetor = new PGvector(queryEmbedding);
+            statement.setObject(1, vetor);
+            statement.setString(2, empresa);
+            statement.setObject(3, vetor);
+            statement.setDouble(4, threshold);
+            statement.setObject(5, vetor);
+            statement.setInt(6, limit);
+            try (var resultSet = statement.executeQuery()) {
+                List<SearchResult> resultados = new ArrayList<>();
+                while (resultSet.next()) {
+                    resultados.add(new SearchResult(
+                            resultSet.getString("text"),
+                            resultSet.getString("documento"),
+                            resultSet.getString("secao"),
+                            resultSet.getDouble("score")));
+                }
+                return resultados;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Falha ao buscar chunks da empresa " + empresa, e);
+        }
     }
 
     @Override

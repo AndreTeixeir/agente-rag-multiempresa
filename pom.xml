@@ -28,6 +28,14 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Testes marcados @Tag("llm") chamam API paga e ficam fora do "mvn test"
+		     padrão por default. Um valor literal em <excludedGroups> não pode ser
+		     sobrescrito por -D (o XML explícito da configuração do plugin vence a
+		     propriedade de sistema, mesmo quando ela tem o mesmo nome do parâmetro
+		     — confirmado empiricamente na Etapa 4.2a); referenciar uma property
+		     aqui é o que permite o override. Rodar os testes "llm" explicitamente:
+		     mvn test -Dgroups=llm -Dsurefire.excludedGroups= -->
+		<surefire.excludedGroups>llm</surefire.excludedGroups>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -78,6 +86,16 @@
 			<version>1.18.1-beta28</version>
 		</dependency>
 		<dependency>
+			<!-- Chat model (GoogleAiGeminiChatModel) — já era resolvida transitivamente
+			     pelo starter acima, na mesma versão 1.18.1 do langchain4j-core.
+			     Declarada explicitamente aqui porque a Etapa 4.2b passa a usar suas
+			     classes diretamente (composição manual, sem AiServices) — nenhuma
+			     versão foi alterada, só tornada explícita. -->
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-google-ai-gemini</artifactId>
+			<version>1.18.1</version>
+		</dependency>
+		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-pgvector</artifactId>
 			<version>1.18.1-beta28</version>
@@ -116,10 +134,9 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
 					<!-- Testes marcados @Tag("llm") chamam API paga e ficam fora do
-					     "mvn test" padrão — rodar com -Dgroups=llm explicitamente. -->
-					<!-- Testes marcados @Tag("llm") chamam API paga e ficam fora do
-					     "mvn test" padrão — rodar com -Dgroups=llm explicitamente. -->
-					<excludedGroups>llm</excludedGroups>
+					     "mvn test" padrão. Rodar explicitamente com:
+					     mvn test -Dgroups=llm -Dsurefire.excludedGroups= -->
+					<excludedGroups>${surefire.excludedGroups}</excludedGroups>
 				</configuration>
 			</plugin>
 		</plugins>

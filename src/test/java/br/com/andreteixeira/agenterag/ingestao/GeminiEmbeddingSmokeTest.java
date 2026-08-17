@@ -16,9 +16,14 @@ import org.slf4j.LoggerFactory;
  * Chamada ÚNICA e real à API de embeddings do Gemini — gate da Etapa 3, tarefa
  * 7. NÃO faz parte do {@code mvn test} padrão (excludedGroups=llm no
  * surefire); rodar explicitamente com:
- * <pre>{@code mvn test -Dtest=GeminiEmbeddingSmokeTest -Dgroups=llm}</pre>
- * Exatamente uma chamada nesta classe — não adicionar um segundo teste aqui
- * sem decisão explícita, a cota deste endpoint nunca foi usada nesta conta.
+ * <pre>{@code mvn test -Dtest=GeminiEmbeddingSmokeTest -Dgroups=llm -Dsurefire.excludedGroups=}</pre>
+ * (o {@code -Dsurefire.excludedGroups=} é obrigatório — sem ele o valor
+ * default "llm" da property em {@code pom.xml} continua excluindo esta
+ * classe, mesmo com {@code -Dgroups=llm}; ver comentário em {@code pom.xml}
+ * e o relatório da Etapa 4.2a que documentou e corrigiu o comando anterior,
+ * que nunca funcionou). Exatamente uma chamada nesta classe — não adicionar
+ * um segundo teste aqui sem decisão explícita, a cota deste endpoint nunca
+ * foi usada nesta conta.
  */
 @Tag("llm")
 class GeminiEmbeddingSmokeTest {
