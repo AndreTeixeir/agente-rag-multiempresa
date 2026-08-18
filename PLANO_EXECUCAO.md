@@ -1,7 +1,7 @@
 # Plano de Execução — agente-rag-multiempresa
 
 **Challenge RAG — Alura / Oracle ONE (Tech AI Builder)**
-Prazo final: **19/ago/2026, 23:59**
+Prazo final: **22/ago/2026, 23:59**
 Repositório: `agente-rag-multiempresa` (público, `AndreTeixeir`)
 Local: `~/Desktop/Projetos/agente-rag-multiempresa`
 

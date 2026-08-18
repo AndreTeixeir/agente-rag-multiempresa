@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente RAG multi-empresa</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  #barra-topo { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+  #empresa { flex: 1; padding: 0.4rem; }
+  #nova-conversa { padding: 0.4rem 0.8rem; }
+  #historico { border: 1px solid #ccc; border-radius: 6px; min-height: 300px; max-height: 55vh; overflow-y: auto; padding: 0.75rem; margin-bottom: 0.75rem; }
+  .msg { margin-bottom: 0.9rem; }
+  .msg .autor { font-weight: bold; font-size: 0.85rem; margin-bottom: 0.15rem; }
+  .msg.usuario .autor { color: #2a5db0; }
+  .msg.assistente .autor { color: #1a7a4c; }
+  .msg .texto { white-space: pre-wrap; }
+  .fontes { margin-top: 0.3rem; font-size: 0.8rem; color: #555; }
+  .fontes ul { margin: 0.2rem 0 0 1rem; padding: 0; }
+  #form-mensagem { display: flex; gap: 0.5rem; }
+  #mensagem { flex: 1; padding: 0.5rem; }
+  #form-mensagem button { padding: 0.5rem 1rem; }
+  #erro-banner { background: #fdecea; color: #611a15; border: 1px solid #f5c6cb; border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+  #erro-banner[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <h1>Agente RAG multi-empresa</h1>
+
+  <div id="barra-topo">
+    <select id="empresa">
+      <option value="" disabled selected>Selecione a empresa</option>
+      <option value="bimbam">BimBam Buy</option>
+      <option value="mercado-central">Mercado Central 24h</option>
+      <option value="santo-pegasus">Santo Pegasus</option>
+    </select>
+    <button id="nova-conversa" type="button">Nova conversa</button>
+  </div>
+
+  <div id="erro-banner" hidden></div>
+
+  <div id="historico"></div>
+
+  <form id="form-mensagem">
+    <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
+    <button type="submit">Enviar</button>
+  </form>
+
+<script>
+(function () {
+  // crypto.randomUUID() exige contexto seguro (https/localhost); getRandomValues não —
+  // importa porque a Etapa 7 faz deploy em HTTP puro antes da Etapa 8 adicionar HTTPS.
+  function uuidv4() {
+    var bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    var hex = Array.from(bytes, function (b) { return b.toString(16).padStart(2, '0'); });
+    return hex.slice(0, 4).join('') + '-' + hex.slice(4, 6).join('') + '-' + hex.slice(6, 8).join('') + '-' +
+        hex.slice(8, 10).join('') + '-' + hex.slice(10, 16).join('');
+  }
+
+  var selectEmpresa = document.getElementById('empresa');
+  var botaoNovaConversa = document.getElementById('nova-conversa');
+  var historico = document.getElementById('historico');
+  var form = document.getElementById('form-mensagem');
+  var campoMensagem = document.getElementById('mensagem');
+  var erroBanner = document.getElementById('erro-banner');
+
+  var threadId = uuidv4();
+  var conversaIniciada = false;
+
+  function mostrarErro(msg) {
+    erroBanner.textContent = msg;
+    erroBanner.hidden = false;
+  }
+
+  function esconderErro() {
+    erroBanner.hidden = true;
+  }
+
+  function appendMensagemUsuario(texto) {
+    var div = document.createElement('div');
+    div.className = 'msg usuario';
+    div.innerHTML = '<div class="autor">Você</div><div class="texto"></div>';
+    div.querySelector('.texto').textContent = texto;
+    historico.appendChild(div);
+    historico.scrollTop = historico.scrollHeight;
+  }
+
+  function appendRespostaAssistente(resposta) {
+    var div = document.createElement('div');
+    div.className = 'msg assistente';
+    div.innerHTML = '<div class="autor">Assistente (' + resposta.empresa + ')</div><div class="texto"></div>';
+    div.querySelector('.texto').textContent = resposta.texto;
+
+    if (resposta.fontes && resposta.fontes.length > 0) {
+      var fontesDiv = document.createElement('div');
+      fontesDiv.className = 'fontes';
+      var lista = resposta.fontes.map(function (f) { return '<li></li>'; }).join('');
+      fontesDiv.innerHTML = 'Fontes:<ul>' + lista + '</ul>';
+      var itens = fontesDiv.querySelectorAll('li');
+      resposta.fontes.forEach(function (f, i) { itens[i].textContent = f; });
+      div.appendChild(fontesDiv);
+    }
+
+    historico.appendChild(div);
+    historico.scrollTop = historico.scrollHeight;
+  }
+
+  function habilitarEntrada(habilitado) {
+    campoMensagem.disabled = !habilitado;
+    form.querySelector('button[type="submit"]').disabled = !habilitado;
+  }
+
+  function novaConversa() {
+    threadId = uuidv4();
+    conversaIniciada = false;
+    historico.innerHTML = '';
+    selectEmpresa.disabled = false;
+    selectEmpresa.value = '';
+    campoMensagem.value = '';
+    esconderErro();
+    campoMensagem.focus();
+  }
+
+  botaoNovaConversa.addEventListener('click', novaConversa);
+
+  form.addEventListener('submit', function (evento) {
+    evento.preventDefault();
+    esconderErro();
+
+    var pergunta = campoMensagem.value.trim();
+    if (!pergunta) {
+      return;
+    }
+    if (!conversaIniciada && !selectEmpresa.value) {
+      mostrarErro('Selecione a empresa antes de começar a conversa.');
+      return;
+    }
+
+    appendMensagemUsuario(pergunta);
+    campoMensagem.value = '';
+    habilitarEntrada(false);
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threadId: threadId,
+        mensagem: pergunta,
+        empresaEscolhida: selectEmpresa.value || null
+      })
+    })
+      .then(function (r) {
+        return r.json().then(function (dados) {
+          if (!r.ok) {
+            throw new Error(dados.erro || 'Erro desconhecido ao consultar o agente.');
+          }
+          return dados;
+        });
+      })
+      .then(function (dados) {
+        appendRespostaAssistente(dados);
+        if (!conversaIniciada) {
+          conversaIniciada = true;
+          selectEmpresa.disabled = true;
+        }
+      })
+      .catch(function (erro) {
+        mostrarErro(erro.message);
+      })
+      .finally(function () {
+        habilitarEntrada(true);
+        campoMensagem.focus();
+      });
+  });
+
+  campoMensagem.focus();
+})();
+</script>
+</body>
+</html>

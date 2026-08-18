@@ -39,11 +39,11 @@ public class ConversaService {
 
         ConversaState estadoFinal = compiledGraph
                 .invoke(GraphInput.args(inputs), config)
-                .orElseThrow(() -> new IllegalStateException("Grafo não produziu estado final para threadId=" + threadId));
+                .orElseThrow(() -> new EstadoGrafoInvalidoException("Grafo não produziu estado final para threadId=" + threadId));
 
         String resposta = estadoFinal
                 .resposta()
-                .orElseThrow(() -> new IllegalStateException("Estado final sem 'resposta' para threadId=" + threadId));
+                .orElseThrow(() -> new EstadoGrafoInvalidoException("Estado final sem 'resposta' para threadId=" + threadId));
 
         return new RespostaConversa(resposta, estadoFinal.fontes(), estadoFinal.empresa().orElseThrow());
     }
