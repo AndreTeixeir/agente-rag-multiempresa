@@ -3,7 +3,7 @@
 Agente RAG multi-empresa para o Challenge Alura/Oracle ONE. Responde perguntas sobre
 documentos de 3 empresas fictícias (BimBam Buy, Mercado Central 24h, Santo Pegasus).
 
-**Prazo: 19/ago/2026.** Plano completo em `PLANO_EXECUCAO.md`.
+**Prazo: 22/ago/2026.** Plano completo em `PLANO_EXECUCAO.md`.
 
 ---
 
@@ -45,7 +45,8 @@ Estrutura:
   (`langgraph4j-core` não depende de Spring)
 - PostgreSQL + pgvector (vetores e checkpoints no mesmo banco)
 - Embeddings: ONNX local — fallback `text-embedding-004`
-- LLM: **`gemini-2.5-flash`** (modelo fixado; não trocar por alias genérico)
+- LLM: **`gemini-3.6-flash`** (modelo fixado; não trocar por alias genérico — `gemini-2.5-flash`
+  retornou 404 para este projeto na Etapa 4.2b, por isso a migração)
 - Interface: HTML/JS servido pelo Spring Boot
 - Testes: JUnit 5 + Testcontainers
 
