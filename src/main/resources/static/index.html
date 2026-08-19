@@ -3,48 +3,196 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agente RAG multi-empresa</title>
+<title>SabIA — agente de conhecimento por empresa</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
-  #barra-topo { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
-  #empresa { flex: 1; padding: 0.4rem; }
-  #nova-conversa { padding: 0.4rem 0.8rem; }
-  #historico { border: 1px solid #ccc; border-radius: 6px; min-height: 300px; max-height: 55vh; overflow-y: auto; padding: 0.75rem; margin-bottom: 0.75rem; }
-  .msg { margin-bottom: 0.9rem; }
-  .msg .autor { font-weight: bold; font-size: 0.85rem; margin-bottom: 0.15rem; }
-  .msg.usuario .autor { color: #2a5db0; }
-  .msg.assistente .autor { color: #1a7a4c; }
-  .msg .texto { white-space: pre-wrap; }
-  .fontes { margin-top: 0.3rem; font-size: 0.8rem; color: #555; }
-  .fontes ul { margin: 0.2rem 0 0 1rem; padding: 0; }
-  #form-mensagem { display: flex; gap: 0.5rem; }
-  #mensagem { flex: 1; padding: 0.5rem; }
-  #form-mensagem button { padding: 0.5rem 1rem; }
-  #erro-banner { background: #fdecea; color: #611a15; border: 1px solid #f5c6cb; border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+  :root {
+    --tinta: #23211D;
+    --pardo: #6E6455;
+    --pardo-escuro: #57503F;
+    --ferrugem: #BC5F2B;
+    --ferrugem-fundo: #A55225;
+    --papel: #FFFFFF;
+    --fundo: #F3F4F1;
+    --linha: #DFDDD5;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    color: var(--tinta);
+    background: var(--fundo);
+    margin: 0;
+    padding: 2rem 1rem 3rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .tela { max-width: 780px; margin: 0 auto; }
+
+  .hero {
+    position: relative;
+    aspect-ratio: 2.6 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    background: #DDE3D8;
+    box-shadow: 0 1px 2px rgba(35,33,29,.06), 0 10px 30px rgba(35,33,29,.10);
+  }
+  .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(18,24,16,.80) 0%, rgba(18,24,16,.42) 26%, rgba(18,24,16,0) 56%);
+  }
+  .hero-texto { position: absolute; left: 1.5rem; right: 1.5rem; bottom: 1.05rem; z-index: 2; }
+  .hero-texto h1 {
+    font-family: var(--serif); font-size: 2.5rem; font-weight: 600;
+    color: #fff; margin: 0; line-height: 1.05; letter-spacing: 0.01em;
+    text-shadow: 0 2px 14px rgba(0,0,0,.55);
+  }
+  .tagline {
+    margin: 0.3rem 0 0; font-size: 0.92rem; color: rgba(255,255,255,.94);
+    text-shadow: 0 1px 10px rgba(0,0,0,.65);
+  }
+
+  .painel {
+    background: var(--papel);
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(35,33,29,.05), 0 8px 26px rgba(35,33,29,.05);
+    padding: 1rem;
+  }
+
+  #barra-topo { display: flex; gap: 0.6rem; margin-bottom: 0.85rem; align-items: center; }
+  #empresa {
+    flex: 1; padding: 0.55rem 0.6rem; font: inherit; color: var(--tinta);
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 7px;
+  }
+  #empresa:disabled { color: var(--pardo); background: #FAF9F6; }
+  #nova-conversa {
+    padding: 0.55rem 0.9rem; font: inherit; color: var(--pardo);
+    background: transparent; border: 1px solid var(--linha); border-radius: 7px;
+    cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  #nova-conversa:hover { border-color: var(--pardo); color: var(--tinta); }
+
+  #erro-banner {
+    background: #FCEEE9; color: #7A2E12; border: 1px solid #F0CDBE;
+    border-left: 3px solid var(--ferrugem); border-radius: 6px;
+    padding: 0.55rem 0.75rem; margin-bottom: 0.85rem; font-size: 0.88rem;
+  }
   #erro-banner[hidden] { display: none; }
+
+  #historico {
+    min-height: 320px; max-height: 52vh; overflow-y: auto;
+    padding: 0.35rem 0.15rem; margin-bottom: 0.9rem;
+  }
+  #historico:empty {
+    background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Cdefs%3E%3CclipPath%20id%3D%22e%22%3E%3Cpath%20d%3D%22M%2042%2010%20C%2050%2010%2C%2056%2016%2C%2055%2024%20C%2054%2029%2C%2051%2032%2C%2049%2036%20C%2047%2043%2C%2042%2049%2C%2034%2051%20C%2026%2053%2C%2019%2050%2C%2016%2044%20C%2014%2038%2C%2016%2028%2C%2023%2020%20C%2028%2013%2C%2035%2010%2C%2042%2010%20Z%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%20%3Cpath%20d%3D%22M%2020%2040%20L%203%2054%20L%2013%2062%20L%2026%2046%20Z%22%20fill%3D%22%2357503F%22%2F%3E%20%3Cpath%20d%3D%22M%2042%2010%20C%2050%2010%2C%2056%2016%2C%2055%2024%20C%2054%2029%2C%2051%2032%2C%2049%2036%20C%2047%2043%2C%2042%2049%2C%2034%2051%20C%2026%2053%2C%2019%2050%2C%2016%2044%20C%2014%2038%2C%2016%2028%2C%2023%2020%20C%2028%2013%2C%2035%2010%2C%2042%2010%20Z%22%20fill%3D%22%236E6455%22%2F%3E%20%3Cg%20clip-path%3D%22url%28%23e%29%22%3E%20%3Cellipse%20cx%3D%2250%22%20cy%3D%2240%22%20rx%3D%2219%22%20ry%3D%2217%22%20transform%3D%22rotate%28-15%2050%2040%29%22%20fill%3D%22%23BC5F2B%22%2F%3E%20%3Cpath%20d%3D%22M%2041%2029%20C%2043%2035%2C%2040%2041%2C%2033%2043%20C%2029%2044%2C%2025%2042%2C%2023%2039%20C%2029%2039%2C%2037%2035%2C%2041%2029%20Z%22%20fill%3D%22%2357503F%22%2F%3E%20%3C%2Fg%3E%20%3Cpath%20d%3D%22M%2054%2019%20L%2063%2023%20L%2054%2027%20Z%22%20fill%3D%22%23D9A441%22%2F%3E%20%3Ccircle%20cx%3D%2248%22%20cy%3D%2220%22%20r%3D%222.2%22%20fill%3D%22%2323211D%22%2F%3E%20%3C%2Fsvg%3E") no-repeat center 34%;
+    background-size: 58px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #historico:empty::before {
+    content: "Escolha a empresa e faça sua pergunta.";
+    display: block; margin-top: 5.5rem; text-align: center;
+    color: var(--pardo); font-size: 0.9rem;
+  }
+
+  .msg { margin-bottom: 1.05rem; max-width: 88%; }
+  .msg .autor {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+    font-weight: 600; margin-bottom: 0.3rem;
+  }
+  .msg .texto {
+    white-space: pre-wrap; padding: 0.7rem 0.85rem;
+    border: 1px solid var(--linha); border-radius: 9px;
+  }
+
+  .msg.usuario { margin-left: auto; }
+  .msg.usuario .autor { color: var(--pardo); text-align: right; }
+  .msg.usuario .texto { background: #EDEEE9; }
+
+  .msg.assistente .autor { color: var(--ferrugem); }
+  .msg.assistente .texto { background: var(--papel); }
+
+  .fontes {
+    margin-top: 0.55rem; font-family: var(--mono); font-size: 0.75rem;
+    color: var(--pardo-escuro); background: #FAF9F6;
+    border-left: 3px solid var(--ferrugem); border-radius: 0 6px 6px 0;
+    padding: 0.5rem 0.7rem; line-height: 1.5;
+  }
+  .fontes ul { margin: 0.35rem 0 0; padding: 0; list-style: none; }
+  .fontes li { position: relative; padding-left: 0.95rem; margin-bottom: 0.2rem; word-break: break-word; }
+  .fontes li::before { content: "\2014"; position: absolute; left: 0; color: var(--ferrugem); }
+
+  #form-mensagem { display: flex; gap: 0.6rem; }
+  #mensagem {
+    flex: 1; padding: 0.65rem 0.75rem; font: inherit;
+    border: 1px solid var(--linha); border-radius: 7px;
+    background: var(--papel); color: var(--tinta);
+  }
+  #mensagem:focus { outline: none; border-color: var(--pardo); box-shadow: 0 0 0 3px rgba(110,100,85,.13); }
+  #form-mensagem button {
+    padding: 0.65rem 1.3rem; font: inherit; font-weight: 600; color: #fff;
+    background: var(--ferrugem); border: 1px solid var(--ferrugem);
+    border-radius: 7px; cursor: pointer; transition: background .15s;
+  }
+  #form-mensagem button:hover { background: var(--ferrugem-fundo); }
+  #form-mensagem button:disabled, #mensagem:disabled { opacity: .55; cursor: not-allowed; }
+
+  .rodape { margin-top: 0.9rem; font-size: 0.76rem; color: var(--pardo); text-align: center; }
+
+  :focus-visible { outline: 2px solid var(--ferrugem); outline-offset: 2px; }
+
+  @media (max-width: 560px) {
+    body { padding: 1.25rem 0.75rem 2rem; }
+    .hero-texto { left: 1rem; right: 1rem; bottom: 0.8rem; }
+    .hero-texto h1 { font-size: 1.75rem; }
+    .tagline { font-size: 0.8rem; }
+    .msg { max-width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
 </style>
 </head>
 <body>
-  <h1>Agente RAG multi-empresa</h1>
+  <div class="tela">
+    <header class="hero">
+      <img src="/sabia-banner.jpg" alt="Sabia com headset pousado em um galho, com uma camera pendurada no pescoco">
+      <div class="hero-texto">
+        <h1>SabIA</h1>
+        <p class="tagline">Pergunte sobre uma empresa. Cada resposta cita o documento de onde veio.</p>
+      </div>
+    </header>
 
-  <div id="barra-topo">
-    <select id="empresa">
-      <option value="" disabled selected>Selecione a empresa</option>
-      <option value="bimbam">BimBam Buy</option>
-      <option value="mercado-central">Mercado Central 24h</option>
-      <option value="santo-pegasus">Santo Pegasus</option>
-    </select>
-    <button id="nova-conversa" type="button">Nova conversa</button>
+    <main class="painel">
+      <div id="barra-topo">
+        <select id="empresa">
+          <option value="" disabled selected>Selecione a empresa</option>
+          <option value="bimbam">BimBam Buy</option>
+          <option value="mercado-central">Mercado Central 24h</option>
+          <option value="santo-pegasus">Santo Pegasus</option>
+        </select>
+        <button id="nova-conversa" type="button">Nova conversa</button>
+      </div>
+
+      <div id="erro-banner" hidden></div>
+
+      <div id="historico"></div>
+
+      <form id="form-mensagem">
+        <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
+        <button type="submit">Enviar</button>
+      </form>
+    </main>
+
+    <p class="rodape">Respostas geradas a partir dos documentos de cada empresa.</p>
   </div>
-
-  <div id="erro-banner" hidden></div>
-
-  <div id="historico"></div>
-
-  <form id="form-mensagem">
-    <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
-    <button type="submit">Enviar</button>
-  </form>
 
 <script>
 (function () {
@@ -178,5 +326,6 @@
   campoMensagem.focus();
 })();
 </script>
+  </div>
 </body>
 </html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><clipPath id="c"><path d="M 42 10 C 50 10, 56 16, 55 24 C 54 29, 51 32, 49 36 C 47 43, 42 49, 34 51 C 26 53, 19 50, 16 44 C 14 38, 16 28, 23 20 C 28 13, 35 10, 42 10 Z"/></clipPath></defs>
+  <path d="M 20 40 L 3 54 L 13 62 L 26 46 Z" fill="#57503F"/>
+  <path d="M 42 10 C 50 10, 56 16, 55 24 C 54 29, 51 32, 49 36 C 47 43, 42 49, 34 51 C 26 53, 19 50, 16 44 C 14 38, 16 28, 23 20 C 28 13, 35 10, 42 10 Z" fill="#6E6455"/>
+  <g clip-path="url(#c)">
+    <ellipse cx="50" cy="40" rx="19" ry="17" transform="rotate(-15 50 40)" fill="#BC5F2B"/>
+    <path d="M 41 29 C 43 35, 40 41, 33 43 C 29 44, 25 42, 23 39 C 29 39, 37 35, 41 29 Z" fill="#57503F"/>
+  </g>
+  <path d="M 54 19 L 63 23 L 54 27 Z" fill="#D9A441"/>
+  <circle cx="48" cy="20" r="2.2" fill="#23211D"/>
+</svg>
