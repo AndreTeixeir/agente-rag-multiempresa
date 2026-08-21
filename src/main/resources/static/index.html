@@ -144,6 +144,24 @@
   #form-mensagem button:hover { background: var(--ferrugem-fundo); }
   #form-mensagem button:disabled, #mensagem:disabled { opacity: .55; cursor: not-allowed; }
 
+  #mic {
+    padding: 0.65rem 0.85rem; font: inherit; line-height: 1; color: var(--pardo-escuro);
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 7px;
+    cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+  }
+  #mic:hover { border-color: var(--pardo); color: var(--tinta); }
+  #mic.gravando {
+    background: var(--ferrugem); border-color: var(--ferrugem); color: #fff;
+    animation: pulso-mic 1.1s ease-in-out infinite;
+  }
+  #mic:disabled { opacity: .55; cursor: not-allowed; }
+  #mic[hidden] { display: none; }
+
+  @keyframes pulso-mic {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(188,95,43,.45); }
+    50% { box-shadow: 0 0 0 6px rgba(188,95,43,0); }
+  }
+
   .rodape { margin-top: 0.9rem; font-size: 0.76rem; color: var(--pardo); text-align: center; }
 
   :focus-visible { outline: 2px solid var(--ferrugem); outline-offset: 2px; }
@@ -157,6 +175,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
+    #mic.gravando { animation: none !important; }
   }
 </style>
 </head>
@@ -187,6 +206,7 @@
 
       <form id="form-mensagem">
         <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
+        <button id="mic" type="button" aria-label="Falar pergunta" title="Falar pergunta">🎤</button>
         <button type="submit">Enviar</button>
       </form>
     </main>
@@ -213,6 +233,7 @@
   var form = document.getElementById('form-mensagem');
   var campoMensagem = document.getElementById('mensagem');
   var erroBanner = document.getElementById('erro-banner');
+  var botaoMic = document.getElementById('mic');
 
   var threadId = uuidv4();
   var conversaIniciada = false;
@@ -258,6 +279,7 @@
   function habilitarEntrada(habilitado) {
     campoMensagem.disabled = !habilitado;
     form.querySelector('button[type="submit"]').disabled = !habilitado;
+    botaoMic.disabled = !habilitado;
   }
 
   function novaConversa() {
@@ -272,6 +294,64 @@
   }
 
   botaoNovaConversa.addEventListener('click', novaConversa);
+
+  // Entrada por voz: só preenche o campo de texto, nunca envia sozinha.
+  // interimResults = false, então nada aparece até o reconhecimento terminar —
+  // por isso o estado visual "gravando" é essencial (senão o usuário não sabe
+  // se o microfone está ativo).
+  var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var reconhecimento = null;
+  var escutando = false;
+
+  if (SpeechRecognitionCtor) {
+    reconhecimento = new SpeechRecognitionCtor();
+    reconhecimento.lang = 'pt-BR';
+    reconhecimento.continuous = false;
+    reconhecimento.interimResults = false;
+
+    reconhecimento.onstart = function () {
+      escutando = true;
+      botaoMic.classList.add('gravando');
+      botaoMic.setAttribute('aria-label', 'Gravando... fale agora');
+    };
+
+    reconhecimento.onresult = function (evento) {
+      campoMensagem.value = evento.results[0][0].transcript;
+    };
+
+    reconhecimento.onerror = function (evento) {
+      if (evento.error === 'aborted') {
+        return;
+      }
+      var mensagensErro = {
+        'not-allowed': 'Permissão de microfone negada.',
+        'no-speech': 'Nenhuma fala foi captada.',
+        'audio-capture': 'Nenhum microfone disponível.',
+        'network': 'Falha de rede durante o reconhecimento de voz.',
+        'service-not-allowed': 'Serviço de reconhecimento de voz indisponível neste navegador.'
+      };
+      mostrarErro(mensagensErro[evento.error] || 'Erro no reconhecimento de voz.');
+    };
+
+    reconhecimento.onend = function () {
+      escutando = false;
+      botaoMic.classList.remove('gravando');
+      botaoMic.setAttribute('aria-label', 'Falar pergunta');
+    };
+
+    botaoMic.addEventListener('click', function () {
+      if (escutando) {
+        return;
+      }
+      try {
+        reconhecimento.start();
+      } catch (erro) {
+        // InvalidStateError se já estiver ativo — ignora, guarda contra start() duplo.
+      }
+    });
+  } else {
+    botaoMic.hidden = true;
+  }
 
   form.addEventListener('submit', function (evento) {
     evento.preventDefault();
