@@ -1,0 +1,24 @@
+[Unit]
+Description=SabIA - agente RAG multiempresa (Challenge Alura/Oracle ONE)
+Documentation=https://github.com/AndreTeixeir/agente-rag-multiempresa
+After=network-online.target postgresql@16-main.service
+Wants=network-online.target
+Requires=postgresql@16-main.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/agente-rag-multiempresa
+EnvironmentFile=/home/ubuntu/.env
+Environment="SERVER_PORT=8000"
+ExecStart=/usr/bin/java -jar /home/ubuntu/agente-rag-multiempresa/target/agente-rag-0.0.1-SNAPSHOT.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sabia
+
+[Install]
+WantedBy=multi-user.target
