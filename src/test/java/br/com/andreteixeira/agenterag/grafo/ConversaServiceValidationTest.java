@@ -37,6 +37,11 @@ class ConversaServiceValidationTest {
     @Autowired
     private ConversaService conversaService;
 
+    /** Ver {@link #pausarSeNaoForOPrimeiro()}. */
+    private static final long PAUSA_MS = Long.getLong("pausa.conversa.ms", 26_000L);
+
+    private int chamadas = 0;
+
     @Test
     void validaDuasConversasDeTresTurnos() {
         conversa1MercadoCentral();
@@ -81,11 +86,37 @@ class ConversaServiceValidationTest {
     }
 
     private ConversaService.RespostaConversa turno(String threadId, String empresaEscolhida, String pergunta) {
+        pausarSeNaoForOPrimeiro();
         log.info("--- turno: empresaEscolhida={} | pergunta=\"{}\" ---", empresaEscolhida, pergunta);
         var resposta = conversaService.responder(threadId, empresaEscolhida, pergunta);
         log.info("empresa (estado)={}", resposta.empresa());
         log.info("RESPOSTA:\n{}", resposta.texto());
         log.info("FONTES: {}", resposta.fontes());
         return resposta;
+    }
+
+    /**
+     * Pausa entre turnos para acomodar o rate limit do free tier do Gemini
+     * (5 requisições/minuto) — não é espera arbitrária. Cada turno com
+     * histórico consome duas requisições (reescrita de consulta + resposta,
+     * ver {@code ConversaNodes:131}), o dobro de uma chamada simples — daí o
+     * default de 26s, o dobro do usado em {@code RespostaServiceValidationTest}.
+     * Sem a pausa, a sexta chamada (por volta do turno 3 da segunda conversa)
+     * estoura o limite e o teste falha no meio, sem retry, queimando cota
+     * sem produzir resultado.
+     * <p>
+     * Pulada no primeiro turno, aplicada antes de cada turno seguinte.
+     * Configurável via {@code -Dpausa.conversa.ms} (default 26000 = 26s).
+     */
+    private void pausarSeNaoForOPrimeiro() {
+        if (chamadas++ == 0) {
+            return;
+        }
+        try {
+            Thread.sleep(PAUSA_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Pausa entre turnos interrompida", e);
+        }
     }
 }

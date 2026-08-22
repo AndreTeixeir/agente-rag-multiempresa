@@ -31,6 +31,11 @@ class RespostaServiceValidationTest {
     @Autowired
     private RespostaService respostaService;
 
+    /** Ver {@link #pausarSeNaoForAPrimeira()}. */
+    private static final long PAUSA_MS = Long.getLong("pausa.resposta.ms", 13_000L);
+
+    private int chamadas = 0;
+
     @Test
     void validaSeisCasosContraOModeloReal() {
         // 1-2: fatos precisos que recuperaram na posição 1 na Etapa 4.2a — devem
@@ -82,11 +87,33 @@ class RespostaServiceValidationTest {
     }
 
     private RespostaService.Resposta caso(String rotulo, String empresa, String pergunta) {
+        pausarSeNaoForAPrimeira();
         log.info("=== {} ===", rotulo);
         log.info("empresa={} | pergunta=\"{}\"", empresa, pergunta);
         RespostaService.Resposta resposta = respostaService.responder(empresa, pergunta);
         log.info("RESPOSTA:\n{}", resposta.texto());
         log.info("FONTES: {}", resposta.fontes());
         return resposta;
+    }
+
+    /**
+     * Pausa entre chamadas para acomodar o rate limit do free tier do Gemini
+     * (5 requisições/minuto) — não é espera arbitrária. Sem ela, chamadas em
+     * sequência rápida estouram o limite e o teste falha no meio (sem
+     * retry), queimando cota sem produzir resultado.
+     * <p>
+     * Pulada na primeira chamada, aplicada antes de cada chamada seguinte.
+     * Configurável via {@code -Dpausa.resposta.ms} (default 13000 = 13s).
+     */
+    private void pausarSeNaoForAPrimeira() {
+        if (chamadas++ == 0) {
+            return;
+        }
+        try {
+            Thread.sleep(PAUSA_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Pausa entre chamadas interrompida", e);
+        }
     }
 }
