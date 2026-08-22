@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -192,5 +193,20 @@ class ChatControllerTest {
                 .anyMatch(evento -> evento.getLevel() == Level.ERROR
                         && evento.getThrowableProxy() != null
                         && mensagemInterna.equals(evento.getThrowableProxy().getMessage()));
+    }
+
+    /**
+     * Reproduz o achado real de produção (Item 5, Missão 2 — confirmado ao vivo
+     * no log da VM: {@code NoResourceFoundException} para {@code /robots.txt}
+     * caindo no handler genérico como "erro não mapeado", com stacktrace de
+     * ~40 linhas). Cobre o caminho novo: 404 silencioso, sem log de erro.
+     */
+    @Test
+    void recursoEstaticoInexistenteRetorna404SemLogarComoErro() throws Exception {
+        mockMvc.perform(get("/robots.txt")).andExpect(status().isNotFound());
+
+        assertThat(logAppender.list)
+                .as("404 de recurso estático não deve gerar log de erro")
+                .noneMatch(evento -> evento.getLevel() == Level.ERROR);
     }
 }

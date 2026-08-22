@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Mapeamento de exceção para HTTP da Etapa 6 (contrato decidido com o André,
@@ -33,6 +34,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *     não pega isso, porque o mock lança a exceção direto). Desce a cadeia de
  *     causas até achar um dos três tipos acima e delega para o handler certo;
  *     sem achar, cai no genérico.</li>
+ *     <li>{@link NoResourceFoundException} — 404 de recurso estático sem
+ *     handler (ex.: {@code robots.txt}, sondas de DevTools) — 404 silencioso
+ *     no corpo, com log em {@code DEBUG} (não {@code ERROR}) para não perder
+ *     rastreabilidade caso um recurso legítimo suma num deploy. Nunca é
+ *     lançada de dentro de um nó do grafo, então nunca passa pela cadeia de
+ *     desembrulho de {@link CompletionException} acima.</li>
  *     <li>Qualquer outra {@link Exception} — 500, mesma regra de mensagem
  *     genérica + log.</li>
  * </ul>
@@ -89,6 +96,12 @@ public class GlobalExceptionHandler {
             atual = atual.getCause();
         }
         return atual;
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Void> handleNoResourceFound(NoResourceFoundException ex) {
+        log.debug("Recurso estático não encontrado: {}", ex.getResourcePath());
+        return ResponseEntity.notFound().build();
     }
 
     @ExceptionHandler(Exception.class)
