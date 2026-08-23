@@ -5,6 +5,22 @@ Prazo final: **22/ago/2026, 23:59**
 Repositório: `agente-rag-multiempresa` (público, `AndreTeixeir`)
 Local: `~/Desktop/Projetos/agente-rag-multiempresa`
 
+**Revisão 3 — 22/ago/2026.** Prazo estendido para 22/ago. Este bloco registra as
+divergências entre o que foi planejado e o que foi construído. **As etapas abaixo não foram
+reescritas**: elas são o registro do que se decidiu em 11/ago, e a diferença entre plano e
+execução é informação, não erro a esconder. Só a tabela de riscos foi corrigida, por afirmar
+fato presente e não histórico.
+
+| O plano previa | O projeto usa | Por quê |
+|---|---|---|
+| `text-embedding-004` como fallback | `gemini-embedding-001`, 768 dim, normalização L2 manual | modelo desligado pelo Google em 14/jan/2026, no meio do projeto |
+| ONNX local como caminho primário de embedding | descartado | desnecessário depois que o caminho de API se provou viável dentro do free tier |
+| `gemini-2.5-flash` | `gemini-3.6-flash` | o 2.5 passou a responder 404 |
+| Spring Boot 3.x | Spring Boot 4.1.0 | |
+| Chunking recursivo simples como padrão | híbrido por cabeçalho (719 chunks) | medido na Etapa 4.3: o recursivo perde o metadado `secao` e não consegue citar seção |
+| 5 nós no grafo | 3 nós | recuperação, limiar e geração ficaram dentro do `RespostaService`, chamado pelo nó `responder` |
+| Calendário encerrando em 19/ago | encerrado em 22/ago | prazo estendido oficialmente |
+
 **Revisão 2 — 11/ago/2026.** Calendário recalibrado para começar hoje; chunking passa a ser
 simples-primeiro-com-medição; conjunto de avaliação antecipado para a Etapa 4; spikes movidos
 para projeto descartável fora do repositório.
@@ -22,6 +38,10 @@ Tudo além disso é bônus.
 ---
 
 ## Calendário (recalibrado — início 11/ago)
+
+> **Nota da Revisão 3:** o prazo foi estendido para 22/ago e o calendário abaixo é o que se
+> planejou em 11/ago, mantido como registro. Na execução real as Etapas 7 e 8 caíram em
+> 19–21/ago, e a Etapa 9 em 22/ago.
 
 | Dia | Data | Foco |
 |---|---|---|
@@ -357,15 +377,20 @@ não depende disso.
 
 ## Riscos mapeados
 
-| Risco | Mitigação |
-|---|---|
-| OCI terminar instância em 18/ago | Instância dentro de 2 OCPU/12 GB + evidência gravada até 17/ago |
-| Capacidade A1 indisponível em São Paulo | Criar a instância **hoje**, não no dia 14 |
-| ONNX não funcionar em ARM64 | Spike 0.2b no dia 1; fallback `text-embedding-004`, porta isolada |
-| LangGraph4j com API divergente | Versão validada no spike e fixada no `pom.xml`; fallback classificação direta |
-| Imagem Docker x86 não rodar na Ampere | Build na própria VM ou `buildx --platform linux/arm64` |
-| Certificado HTTPS atrasar | Demo de voz em localhost, documentada no README |
-| Tabelas quebradas no chunking | Medição na Etapa 4; híbrido aplicado só onde falhar |
-| Valor de teste presumido em vez de lido | Todos os fatos esperados extraídos e anotados na Etapa 2 |
-| Cobrança inesperada na OCI | Budget com alerta em US$ 1 |
-| Modelo Gemini descontinuado | Modelo fixado explicitamente: `gemini-2.5-flash` |
+> **Nota da Revisão 3:** a coluna de desfecho foi acrescentada em 22/ago. Três riscos se
+> materializaram — o modelo de embedding e o de geração foram efetivamente descontinuados
+> durante o projeto, e a cota do free tier apertou mais do que o previsto.
+
+| Risco | Mitigação planejada | Desfecho |
+|---|---|---|
+| OCI terminar instância em 18/ago | Instância dentro de 2 OCPU/12 GB + evidência gravada até 17/ago | não ocorreu |
+| Capacidade A1 indisponível em São Paulo | Criar a instância **hoje**, não no dia 14 | não ocorreu |
+| ONNX não funcionar em ARM64 | Spike 0.2b no dia 1; fallback `text-embedding-004`, porta isolada | **caminho abandonado** — ONNX descartado e o `text-embedding-004` foi desligado pelo Google em 14/jan/2026. A porta `EmbeddingProvider` isolada é o que permitiu a troca por `gemini-embedding-001` sem refatoração |
+| LangGraph4j com API divergente | Versão validada no spike e fixada no `pom.xml` | `org.bsc.langgraph4j` 1.9.0-beta2. `CompileConfig.releaseThread()` tem default `true` e apagaria o histórico silenciosamente; corrigido com `releaseThread(false)` |
+| Imagem Docker x86 não rodar na Ampere | Build na própria VM ou `buildx --platform linux/arm64` | build feito na própria VM |
+| Certificado HTTPS atrasar | Demo de voz em localhost, documentada no README | HTTPS obtido; a voz roda em `https://andreteixeira.dev.br` |
+| Tabelas quebradas no chunking | Medição na Etapa 4; híbrido aplicado só onde falhar | híbrido virou padrão para todo o corpus, por medição na Etapa 4.3 |
+| Valor de teste presumido em vez de lido | Todos os fatos esperados extraídos e anotados na Etapa 2 | cumprido — `docs/FATOS_VERIFICADOS.md` |
+| Cobrança inesperada na OCI | Budget com alerta em US$ 1 | sem cobrança |
+| Modelo Gemini descontinuado | Modelo fixado explicitamente | **materializou-se.** O `gemini-2.5-flash` passou a responder 404; o projeto usa `gemini-3.6-flash`, com o nome exato no `application.yml` e nunca um alias genérico |
+| Cota do free tier limitar o desenvolvimento | não previsto | **materializou-se.** Teto de requisições de geração por dia moldou a arquitetura de testes: `@Tag("llm")` excluído por padrão, fixture de vetores de consulta versionada e pausa entre chamadas |
