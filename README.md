@@ -1,5 +1,7 @@
 # SabIA — agente RAG multi-empresa
 
+[![CI](https://github.com/AndreTeixeir/agente-rag-multiempresa/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreTeixeir/agente-rag-multiempresa/actions/workflows/ci.yml)
+
 Agente conversacional que responde perguntas sobre a documentação interna de três empresas
 fictícias, mantendo isolamento estrito entre elas: a mesma pergunta feita a empresas
 diferentes recupera documentos diferentes e produz respostas diferentes.
@@ -86,12 +88,13 @@ entre perguntas com resposta real foi `0.7201`.
 | Orquestração de LLM | LangChain4j 1.18.1 |
 | Grafo de estado | LangGraph4j 1.9.0-beta2 (`langgraph4j-core` + `langgraph4j-postgres-saver`) |
 | Banco vetorial | PostgreSQL 16 + pgvector |
-| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints) |
+| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints, `V4` limites diários) |
 | Embeddings | `gemini-embedding-001`, 768 dimensões, normalização L2 manual |
-| Geração | `gemini-3.6-flash` |
+| Geração | Sabiazinho-4 (`sabiazinho-4`), da Maritaca, pela API compatível com a OpenAI |
 | Interface | HTML/JS estático servido pelo próprio Spring Boot |
 | Entrada por voz | Web Speech API (`SpeechRecognition`), `pt-BR` |
-| Testes | JUnit 5, AssertJ, Mockito |
+| Testes | JUnit 5, AssertJ, Mockito, Testcontainers |
+| CI | GitHub Actions — `./mvnw test` em todo push e pull request |
 | Deploy | OCI Ampere A1 (ARM64), Ubuntu 24.04, systemd, Caddy + Let's Encrypt |
 
 ---
@@ -102,7 +105,7 @@ entre perguntas com resposta real foi `0.7201`.
 
 - Java 21
 - Docker e Docker Compose
-- Uma chave de API do Google AI Studio
+- Uma chave de API do Google AI Studio (embeddings) e uma da Maritaca (geração das respostas)
 
 ### 1. Banco
 
@@ -114,13 +117,17 @@ Sobe `pgvector/pgvector:pg16` na porta **5434** (não a 5432, para não colidir 
 Postgres local), banco `agenterag`, usuário e senha `rag`. O Flyway aplica as migrações no
 boot da aplicação.
 
-### 2. Chave de API
+### 2. Chaves de API
 
 Crie um arquivo `.env` na raiz do projeto:
 
 ```properties
-GEMINI_API_KEY=sua-chave-aqui
+GEMINI_API_KEY=sua-chave-do-google-aqui
+MARITACA_API_KEY=sua-chave-da-maritaca-aqui
 ```
+
+`GEMINI_API_KEY` é a dos embeddings (ingestão e consulta); `MARITACA_API_KEY` é a da geração
+das respostas.
 
 ```bash
 chmod 600 .env
@@ -129,6 +136,9 @@ chmod 600 .env
 O `.env` é carregado por `spring.config.import: optional:file:.env[.properties]`. **O
 sufixo `[.properties]` é obrigatório** — sem ele o Spring não reconhece a extensão, ignora
 o arquivo em silêncio e a chave chega ao Google como o literal `${GEMINI_API_KEY}`.
+
+O mesmo vale para uma variável ausente: o boot não falha, e a chave chega à API como o literal
+`${MARITACA_API_KEY}` — as perguntas deixam de ser respondidas, sem erro na subida.
 
 ### 3. Ingestão
 
@@ -157,7 +167,8 @@ Interface em `http://localhost:8080`, health em `/health`.
 
 | Variável | Default | Observação |
 |---|---|---|
-| `GEMINI_API_KEY` | — | obrigatória |
+| `GEMINI_API_KEY` | — | obrigatória — embeddings |
+| `MARITACA_API_KEY` | — | obrigatória — geração das respostas |
 | `DB_URL` | `jdbc:postgresql://localhost:5434/agenterag` | |
 | `DB_USERNAME` | `rag` | |
 | `DB_PASSWORD` | `rag` | |
@@ -174,13 +185,58 @@ Existe para tornar a decisão de chunking mensurável, não teórica — ver se�
 
 ---
 
+## Limites da demo
+
+O chat é público, e cada pergunta custa uma ou duas chamadas ao modelo (duas a partir da
+segunda pergunta de uma conversa, por causa da reescrita de consulta). Por isso a demo tem
+limites, todos em `app.demo.limites`, no `application.yml`:
+
+| Limite | Valor |
+|---|---|
+| Perguntas por dia, somando todo mundo | 100 |
+| Perguntas por dia, por IP | 10 |
+| Tamanho de cada mensagem | 1.000 caracteres |
+
+O que acontece quando um limite acaba. A interface mostra a mensagem como um aviso dentro da
+conversa (429 e 503) ou no banner de erro acima dela (400), e a conversa continua funcionando:
+
+| Situação | Resposta | Mensagem |
+|---|---|---|
+| As 100 perguntas do dia acabaram | HTTP 429 | A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
+| As 10 perguntas do IP acabaram | HTTP 429 | Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
+| Mensagem com mais de 1.000 caracteres | HTTP 400 | A mensagem pode ter no máximo 1000 caracteres. |
+| O provedor do modelo recusou por limite de uso ou saldo | HTTP 503 | O assistente atingiu o limite de uso no momento. Tente novamente mais tarde. |
+| O provedor do modelo não respondeu no tempo limite (30 s por tentativa, com uma nova tentativa) | HTTP 503 | O assistente demorou demais para responder. Tente novamente. |
+
+Como a contagem funciona:
+
+- **Conta pergunta aceita**, antes de o grafo rodar. Mensagem longa demais e pergunta recusada
+  por um limite não contam e não chegam ao modelo.
+- **Os contadores ficam no Postgres** (migração `V4`), então sobrevivem a reinício e deploy. O
+  incremento é um único `INSERT ... ON CONFLICT DO UPDATE`, atômico com requisições
+  simultâneas.
+- **O dia vira à meia-noite de `America/Sao_Paulo`.**
+- **O IP não é gravado em texto**, só o hash SHA-256. As contagens por IP de dias anteriores
+  são apagadas; as do total ficam 7 dias.
+- **O IP vem do `X-Forwarded-For`**, enviado pelo Caddy, por
+  `server.forward-headers-strategy: native`. O Tomcat só aceita o cabeçalho quando a conexão
+  vem de um proxy interno (loopback e as faixas privadas, por padrão), então quem chegar direto
+  à aplicação, de fora dessas faixas, não consegue forjar o próprio IP. A porta da aplicação
+  (8000) não fica aberta para o exterior, só o Caddy.
+
+---
+
 ## Testes
 
 ```bash
 ./mvnw test
 ```
 
-17 testes, todos offline. **Exige Docker**: o teste de integração sobe o próprio container.
+80 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
+
+Os mesmos testes rodam no GitHub Actions a cada push e pull request
+(`.github/workflows/ci.yml`, Java 21 Temurin), sem Postgres local e sem chaves reais — por
+isso o teste de contexto também usa Testcontainers e chaves falsas.
 
 Testes que consomem API paga levam `@Tag("llm")` e ficam **fora** do `mvn test` padrão. Para
 rodar um deles explicitamente:
@@ -188,6 +244,9 @@ rodar um deles explicitamente:
 ```bash
 ./mvnw test -Dtest=NomeDaClasse -Dgroups=llm -Dsurefire.excludedGroups=
 ```
+
+`MaritacaSmokeTest` e `GeminiEmbeddingSmokeTest` fazem, cada um, uma única chamada real: a da
+geração e a dos embeddings.
 
 O `-Dsurefire.excludedGroups=` é obrigatório. Um valor literal em `<excludedGroups>` não
 pode ser sobrescrito por `-D` — o XML da configuração do plugin vence a propriedade de
@@ -205,7 +264,7 @@ perguntas do conjunto **sem chamar a API**.
 ### O teste que vale mais que os outros
 
 `IngestaoIntegrationTest` sobe um Postgres real com pgvector via Testcontainers, aplica as
-três migrações do Flyway e injeta um `EmbeddingProvider` determinístico — nenhuma chamada de
+migrações do Flyway e injeta um `EmbeddingProvider` determinístico — nenhuma chamada de
 rede.
 
 O caso central prova o invariante do projeto com uma armadilha deliberada: **o vetor de um
@@ -215,6 +274,15 @@ Central.** Numa busca filtrada por `mercado-central`, ele ainda assim não apare
 Isso demonstra que o isolamento entre empresas é propriedade do filtro no banco, não
 confiança na geometria do embedding. Um teste que só verificasse "a busca retorna o
 documento certo" passaria mesmo se o filtro fosse removido.
+
+### Erros do provedor e limites, contra o grafo de verdade
+
+`ErrosDoProvedorIntegrationTest` e `LimitesDiariosIntegrationTest` sobem o grafo real, o
+Postgres em container e um Tomcat real, com um servidor HTTP local no lugar do provedor do
+modelo — nenhuma chamada paga. Existem porque um teste com o serviço mockado não pega o que o
+`CompiledGraph` faz com as exceções (embrulha tudo em `CompletionException`): o mock lança a
+exceção direto. O segundo cobre o incremento concorrente, o rollback do total quando o limite
+por IP recusa, a retenção, a virada do dia e a leitura do `X-Forwarded-For`.
 
 ---
 
@@ -416,7 +484,7 @@ proxy reverso e terminação TLS com certificado Let's Encrypt.
 entrada por voz, que só funciona sob HTTPS por exigência da Web Speech API.
 
 A porta da aplicação (8000) fica fechada para o exterior; só 80 e 443 estão abertas, e as
-regras de firewall estão persistidas em disco. Chave de API e senha do banco vêm por
+regras de firewall estão persistidas em disco. Chaves de API e senha do banco vêm por
 `EnvironmentFile`, nunca do repositório.
 
 ### Comprovação de que a infraestrutura é OCI
@@ -472,10 +540,14 @@ quando a dimensionalidade é reduzida, e sem isso a similaridade de cosseno fica
 
 ### O modelo de geração previsto saiu do ar
 
-O projeto usa **`gemini-3.6-flash`**. O modelo fixado no plano original foi descontinuado
+O projeto usou **`gemini-3.6-flash`**. O modelo fixado no plano original foi descontinuado
 durante o desenvolvimento e passou a responder 404 — a segunda vez, no mesmo projeto, em
 que um modelo do fornecedor saiu do ar em pleno curso. A prática que ficou: nome exato e
 explícito no `application.yml`, nunca um alias genérico, que muda sob os pés.
+
+Depois disso, a geração passou para o Sabiazinho-4, da Maritaca (API compatível com a OpenAI);
+os embeddings seguem no `gemini-embedding-001`. A comparação medida entre os modelos ainda não
+foi feita.
 
 ### O `.env` era ignorado em silêncio
 
@@ -488,7 +560,7 @@ para o lugar errado. Corrigido com o sufixo `[.properties]`.
 
 Com teto diário de requisições de geração, uma suíte que chama o modelo a cada `mvn test`
 seria inviável. Daí três medidas: `@Tag("llm")` excluído por padrão via property no Surefire,
-fixture de embeddings versionada para o harness de 32 casos rodar sem rede, e pausa
+fixture de embeddings versionada para o harness de 43 casos rodar sem rede, e pausa
 configurável entre documentos na ingestão.
 
 ### Dois firewalls em série na OCI
