@@ -114,7 +114,7 @@ class IngestaoIntegrationTest {
     }
 
     /**
-     * O invariante central do projeto (CLAUDE.md): isolamento entre empresas é
+     * O invariante central do projeto: isolamento entre empresas é
      * filtro no banco, não confiança no embedding. A armadilha: o vetor da
      * BimBam é construído deliberadamente MAIS PRÓXIMO da pergunta do que o
      * vetor correto do Mercado Central (comprovado pela primeira busca abaixo,

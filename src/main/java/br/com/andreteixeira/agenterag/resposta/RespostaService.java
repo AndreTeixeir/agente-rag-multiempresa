@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
  * estar visível aqui, não escondido dentro de uma abstração de RAG pronta.
  * <p>
  * Duas comportas contra alucinação e gasto de cota, além da terceira camada
- * (citação de fonte) exigida pelo {@code CLAUDE.md}:
+ * (citação de fonte) exigida pela arquitetura anti-alucinação do projeto:
  * <ol>
  *     <li><b>Comporta 1</b> — se a busca não devolver nenhum chunk acima do
  *     limiar ({@link RespostaProperties#threshold()}), responde admissão de

@@ -2,7 +2,7 @@
 
 ## 2026-08-11 — Correção do modelo de embeddings: text-embedding-004 está desligado
 
-O `PLANO_EXECUCAO.md` e o `CLAUDE.md` ainda citam `text-embedding-004` como fallback
+O `PLANO_EXECUCAO.md` ainda cita `text-embedding-004` como fallback
 de embeddings via API. Essa informação está desatualizada: o Google desligou o
 `text-embedding-004` em 14/01/2026 e o modelo não existe mais na API. O substituto é
 `gemini-embedding-001`.

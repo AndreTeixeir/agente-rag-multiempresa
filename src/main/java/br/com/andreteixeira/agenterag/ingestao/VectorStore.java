@@ -20,7 +20,7 @@ public interface VectorStore {
     /**
      * Busca os chunks mais próximos de {@code queryEmbedding} dentro de uma
      * única empresa — o isolamento entre tenants é este filtro no banco, não
-     * confiança no embedding (ver CLAUDE.md). {@code empresa} é obrigatório:
+     * confiança no embedding — invariante central da arquitetura. {@code empresa} é obrigatório:
      * não existe sobrecarga sem empresa nem valor default, porque não existe
      * busca sem empresa selecionada no fluxo do agente.
      * <p>

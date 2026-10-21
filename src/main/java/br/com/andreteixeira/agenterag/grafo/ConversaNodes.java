@@ -78,7 +78,7 @@ class ConversaNodes {
 
     /**
      * Nó 1 — identificação de empresa (se ainda não definida no estado).
-     * Não adivinha empresa (CLAUDE.md) — exige que o chamador informe
+     * Não adivinha empresa, por decisão de arquitetura do projeto — exige que o chamador informe
      * explicitamente na primeira mensagem da conversa, e que o valor
      * informado seja uma das {@link #EMPRESAS_VALIDAS}: {@code trim}/
      * {@code lowercase} NÃO são aplicados de propósito — os três valores são
