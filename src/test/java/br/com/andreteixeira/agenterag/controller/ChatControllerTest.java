@@ -16,12 +16,26 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import dev.langchain4j.exception.AuthenticationException;
+import dev.langchain4j.exception.HttpException;
+import dev.langchain4j.exception.InternalServerException;
+import dev.langchain4j.exception.InvalidRequestException;
+import dev.langchain4j.exception.LangChain4jException;
+import dev.langchain4j.exception.RateLimitException;
+import dev.langchain4j.exception.TimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
+import org.bsc.langgraph4j.GraphRunnerException;
+import org.bsc.langgraph4j.RunnableConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -208,5 +222,115 @@ class ChatControllerTest {
         assertThat(logAppender.list)
                 .as("404 de recurso estático não deve gerar log de erro")
                 .noneMatch(evento -> evento.getLevel() == Level.ERROR);
+    }
+
+    // ---- Erros do provedor do modelo (Maritaca) ------------------------------------------
+    // As exceções e as cadeias são as reais da LangChain4j 1.18.1 e do LangGraph4j
+    // 1.9.0-beta2, registradas no ErrosDoProvedorIntegrationTest contra o grafo de verdade:
+    // 429 -> RateLimitException -> HttpException; 402 (sem exceção própria) ->
+    // InvalidRequestException -> HttpException; tempo limite -> TimeoutException ->
+    // HttpTimeoutException; e o grafo embrulha em CompletionException -> GraphRunnerException ->
+    // ExecutionException -> o erro do provedor.
+
+    private static final String MENSAGEM_LIMITE_DE_USO =
+            "O assistente atingiu o limite de uso no momento. Tente novamente mais tarde.";
+    private static final String MENSAGEM_TEMPO_LIMITE = "O assistente demorou demais para responder. Tente novamente.";
+
+    private static CompletionException embrulhadoPeloGrafo(Throwable erroDoProvedor) {
+        RunnableConfig config = RunnableConfig.builder().threadId("t1").build();
+        return new CompletionException(new GraphRunnerException(config, new ExecutionException(erroDoProvedor)));
+    }
+
+    private static Stream<Arguments> errosDeLimiteOuSaldoDoProvedor() {
+        RuntimeException limite = new RateLimitException(new HttpException(429, "limite do provedor"));
+        RuntimeException saldo = new InvalidRequestException(new HttpException(402, "saldo do provedor"));
+        return Stream.of(
+                Arguments.of("429 direto", limite),
+                Arguments.of("429 embrulhado em CompletionException", embrulhadoPeloGrafo(limite)),
+                Arguments.of("402 direto", saldo),
+                Arguments.of("402 embrulhado em CompletionException", embrulhadoPeloGrafo(saldo)));
+    }
+
+    private static Stream<Arguments> errosDeTempoLimiteDoProvedor() {
+        RuntimeException tempoDoCliente = new TimeoutException(new HttpTimeoutException("request timed out"));
+        RuntimeException tempoDoProvedor = new TimeoutException(new HttpException(408, "tempo do provedor"));
+        return Stream.of(
+                Arguments.of("tempo limite do cliente direto", tempoDoCliente),
+                Arguments.of("tempo limite do cliente embrulhado em CompletionException", embrulhadoPeloGrafo(tempoDoCliente)),
+                Arguments.of("408 do provedor direto", tempoDoProvedor),
+                Arguments.of("408 do provedor embrulhado em CompletionException", embrulhadoPeloGrafo(tempoDoProvedor)));
+    }
+
+    private static Stream<Arguments> outrosErrosDoProvedor() {
+        return Stream.of(
+                        erroDoProvedorComDetalhe("401 chave inválida", new AuthenticationException(new HttpException(401, "detalhe-401"))),
+                        erroDoProvedorComDetalhe("500 do provedor", new InternalServerException(new HttpException(500, "detalhe-500"))),
+                        erroDoProvedorComDetalhe("400 do provedor", new InvalidRequestException(new HttpException(400, "detalhe-400"))),
+                        erroDoProvedorComDetalhe("falha qualquer da biblioteca", new LangChain4jException("detalhe-biblioteca")))
+                .flatMap(caso -> caso);
+    }
+
+    /** Cada erro entra duas vezes: direto e embrulhado pelo grafo. O detalhe é o que não pode vazar no corpo. */
+    private static Stream<Arguments> erroDoProvedorComDetalhe(String nome, RuntimeException erro) {
+        String detalhe = erro.getMessage();
+        return Stream.of(
+                Arguments.of(nome + " direto", erro, detalhe),
+                Arguments.of(nome + " embrulhado em CompletionException", embrulhadoPeloGrafo(erro), detalhe));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("errosDeLimiteOuSaldoDoProvedor")
+    void limiteOuSaldoDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.erro").value(MENSAGEM_LIMITE_DE_USO));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("errosDeTempoLimiteDoProvedor")
+    void tempoLimiteDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.erro").value(MENSAGEM_TEMPO_LIMITE));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("outrosErrosDoProvedor")
+    void outrosErrosDoProvedorContinuamRetornando500SemVazarODetalhe(String caso, RuntimeException erro, String detalhe)
+            throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        String corpo = mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.erro").value("Erro interno ao processar a conversa."))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(corpo).as("o detalhe do provedor não pode vazar no corpo").doesNotContain(detalhe);
+        assertThat(logAppender.list)
+                .as("o detalhe do provedor vai para o log, em nível de erro")
+                .anyMatch(evento -> evento.getLevel() == Level.ERROR
+                        && evento.getThrowableProxy() != null
+                        && detalhe.equals(evento.getThrowableProxy().getMessage()));
     }
 }

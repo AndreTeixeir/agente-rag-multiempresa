@@ -24,8 +24,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>
  * Um executor com várias threads atende cada requisição: um handler travado
  * (ver {@link #travarPor}) não impede o atendimento da nova tentativa.
+ * <p>
+ * Público porque é usado por testes de mais de um pacote.
  */
-final class ServidorOpenAiFalso implements AutoCloseable {
+public final class ServidorOpenAiFalso implements AutoCloseable {
 
     private final HttpServer servidor;
     private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -35,7 +37,7 @@ final class ServidorOpenAiFalso implements AutoCloseable {
     private final List<String> corpos = new CopyOnWriteArrayList<>();
     private volatile Comportamento comportamento = exchange -> enviar(exchange, 200, respostaDeChat("ok"));
 
-    ServidorOpenAiFalso() throws IOException {
+    public ServidorOpenAiFalso() throws IOException {
         servidor = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         servidor.setExecutor(executor);
         servidor.createContext("/", this::atender);
@@ -43,16 +45,16 @@ final class ServidorOpenAiFalso implements AutoCloseable {
     }
 
     /** Endereço base para {@code app.resposta.chat.base-url}, com o mesmo prefixo {@code /api} da Maritaca. */
-    String baseUrl() {
+    public String baseUrl() {
         return "http://127.0.0.1:" + servidor.getAddress().getPort() + "/api";
     }
 
-    void responderSempre(int status, String corpoJson) {
+    public void responderSempre(int status, String corpoJson) {
         comportamento = exchange -> enviar(exchange, status, corpoJson);
     }
 
     /** Aceita a requisição e só responde depois de {@code espera} — tempo suficiente para o cliente estourar o limite. */
-    void travarPor(Duration espera) {
+    public void travarPor(Duration espera) {
         comportamento = exchange -> {
             try {
                 Thread.sleep(espera.toMillis());
@@ -62,24 +64,24 @@ final class ServidorOpenAiFalso implements AutoCloseable {
         };
     }
 
-    int requisicoes() {
+    public int requisicoes() {
         return requisicoes.get();
     }
 
-    List<String> caminhos() {
+    public List<String> caminhos() {
         return caminhos;
     }
 
-    List<String> autorizacoes() {
+    public List<String> autorizacoes() {
         return autorizacoes;
     }
 
-    List<String> corpos() {
+    public List<String> corpos() {
         return corpos;
     }
 
     /** Corpo mínimo de uma resposta de chat no formato da OpenAI. */
-    static String respostaDeChat(String texto) {
+    public static String respostaDeChat(String texto) {
         return """
                 {"id":"chatcmpl-teste","object":"chat.completion","created":1,"model":"sabiazinho-4",
                  "choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],
@@ -88,7 +90,7 @@ final class ServidorOpenAiFalso implements AutoCloseable {
     }
 
     /** Corpo de erro no formato da OpenAI. */
-    static String erroDoProvedor(String mensagem) {
+    public static String erroDoProvedor(String mensagem) {
         return """
                 {"error":{"message":"%s","type":"erro_de_teste"}}
                 """.formatted(mensagem);
