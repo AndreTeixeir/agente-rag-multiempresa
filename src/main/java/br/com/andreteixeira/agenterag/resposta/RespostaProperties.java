@@ -1,5 +1,6 @@
 package br.com.andreteixeira.agenterag.resposta;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,6 +11,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.resposta")
 public record RespostaProperties(Chat chat, int limit, double threshold) {
 
-    public record Chat(String apiKey, String modelName) {
+    /**
+     * Chat model servido por uma API compatível com a da OpenAI. {@code timeout}
+     * vale para cada tentativa (conexão e leitura) e {@code maxRetries} é o
+     * número de novas tentativas automáticas depois da primeira — a chamada
+     * executa no máximo {@code maxRetries + 1} vezes.
+     */
+    public record Chat(String baseUrl, String apiKey, String modelName, Duration timeout, int maxRetries) {
     }
 }

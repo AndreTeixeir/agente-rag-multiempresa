@@ -59,10 +59,12 @@ class IngestaoIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-        // Beans do LangChain4j (GoogleAiEmbeddingModel/GoogleAiGeminiChatModel) só
-        // precisam de uma string não vazia para construir — nunca são invocados
-        // neste teste, porque o EmbeddingProvider real é substituído abaixo e
-        // nada aqui chama o serviço de chat.
+        // O bean do embedding (GoogleAiEmbeddingModel) só precisa de uma string
+        // não vazia para construir — nunca é invocado neste teste, porque o
+        // EmbeddingProvider real é substituído abaixo e nada aqui chama o
+        // serviço de chat. O chat (OpenAiChatModel, da Maritaca) também sobe sem
+        // MARITACA_API_KEY: o Spring deixa o placeholder sem valor como literal,
+        // e nada aqui o invoca.
         registry.add("GEMINI_API_KEY", () -> "chave-fake-nao-usada-neste-teste");
     }
 

@@ -86,13 +86,22 @@
 			<version>1.18.1-beta28</version>
 		</dependency>
 		<dependency>
-			<!-- Chat model (GoogleAiGeminiChatModel) — já era resolvida transitivamente
-			     pelo starter acima, na mesma versão 1.18.1 do langchain4j-core.
-			     Declarada explicitamente aqui porque a Etapa 4.2b passa a usar suas
-			     classes diretamente (composição manual, sem AiServices) — nenhuma
-			     versão foi alterada, só tornada explícita. -->
+			<!-- Embedding model (GoogleAiEmbeddingModel, usado por IngestionConfig e
+			     GeminiEmbeddingProvider) — já era resolvida transitivamente pelo
+			     starter acima, na mesma versão 1.18.1 do langchain4j-core.
+			     Declarada explicitamente porque o código usa suas classes
+			     diretamente (composição manual, sem AiServices). O chat não usa
+			     mais esta dependência: foi para o OpenAiChatModel, abaixo. -->
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-google-ai-gemini</artifactId>
+			<version>1.18.1</version>
+		</dependency>
+		<dependency>
+			<!-- Chat model (OpenAiChatModel) apontado para a API compatível com a
+			     OpenAI da Maritaca (Sabiazinho-4). Mesma versão do langchain4j-core;
+			     a existência de 1.18.1 foi confirmada no Maven Central. -->
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-open-ai</artifactId>
 			<version>1.18.1</version>
 		</dependency>
 		<dependency>
