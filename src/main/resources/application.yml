@@ -41,13 +41,17 @@ management:
 
 app:
   demo:
-    # Proteção do chat público (/api/chat). Contados por pergunta aceita, no Postgres
-    # (tabela limite_diario, V4), então sobrevivem a reinício e deploy. O dia vira à
-    # meia-noite do fuso abaixo. Zero bloqueia todas as perguntas.
+    # Proteção do chat público (/api/chat). As perguntas por dia são contadas por pergunta
+    # aceita, no Postgres (tabela limite_diario, V4), então sobrevivem a reinício e
+    # deploy. O dia vira à meia-noite do fuso abaixo. Zero bloqueia todas as perguntas.
     limites:
       perguntas-por-dia: 100
       perguntas-por-ip-por-dia: 10
       fuso: America/Sao_Paulo
+      # Máximo de caracteres de uma mensagem do chat. Acima disso a API responde 400,
+      # sem contar a pergunta e sem chamar o modelo. O index.html repete este valor no
+      # maxlength do campo de mensagem — ao mudar um, mude o outro.
+      tamanho-maximo-mensagem: 1000
   ingestao:
     embedding:
       # Chave nunca em texto puro no repositório público — só a variável.

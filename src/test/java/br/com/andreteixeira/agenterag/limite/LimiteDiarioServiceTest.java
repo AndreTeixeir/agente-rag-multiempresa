@@ -43,7 +43,7 @@ class LimiteDiarioServiceTest {
 
     private LimiteDiarioService servico(int perguntasPorDia, int perguntasPorIpPorDia) {
         return new LimiteDiarioService(
-                repositorio, transacao, new LimitesProperties(perguntasPorDia, perguntasPorIpPorDia, SAO_PAULO), relogio);
+                repositorio, transacao, new LimitesProperties(perguntasPorDia, perguntasPorIpPorDia, SAO_PAULO, 1000), relogio);
     }
 
     private static String chaveDoIp(String hashHex) {
@@ -183,9 +183,10 @@ class LimiteDiarioServiceTest {
 
     @Test
     void limitesNegativosOuFusoAusenteImpedemOStartup() {
-        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO, 1000)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO, 1000)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, null, 1000)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 0)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /** Mesma semântica do SQL de {@link LimiteDiarioRepository}: limite 0 recusa até a criação, e a contagem não passa do limite. */

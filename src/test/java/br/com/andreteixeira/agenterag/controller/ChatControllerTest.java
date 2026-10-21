@@ -17,6 +17,7 @@ import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
+import br.com.andreteixeira.agenterag.limite.LimitesProperties;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -43,6 +44,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -55,6 +57,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code @Tag("llm")}: roda no {@code mvn test} padrão.
  */
 @WebMvcTest(ChatController.class)
+// O slice não cria beans de @ConfigurationProperties; os valores de app.demo.limites vêm do
+// application.yml de verdade (tamanho máximo da mensagem: 1000).
+@EnableConfigurationProperties(LimitesProperties.class)
 class ChatControllerTest {
 
     @Autowired
@@ -230,6 +235,48 @@ class ChatControllerTest {
         assertThat(logAppender.list)
                 .as("404 de recurso estático não deve gerar log de erro")
                 .noneMatch(evento -> evento.getLevel() == Level.ERROR);
+    }
+
+    // ---- Tamanho máximo da mensagem (1000 caracteres, de app.demo.limites) ----------------
+
+    private static String corpoComMensagem(String mensagem) {
+        return "{\"threadId\":\"t1\",\"mensagem\":\"" + mensagem + "\",\"empresaEscolhida\":\"bimbam\"}";
+    }
+
+    @Test
+    void mensagemComMaisDeMilCaracteresRetorna400SemContarNemChamarOGrafo() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("a".repeat(1001))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("A mensagem pode ter no máximo 1000 caracteres."));
+
+        verifyNoInteractions(limiteDiarioService, conversaService);
+    }
+
+    @Test
+    void mensagemComExatamenteMilCaracteresEhAceita() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("a".repeat(1000))))
+                .andExpect(status().isOk());
+
+        verify(limiteDiarioService).registrarPergunta(anyString());
+    }
+
+    @Test
+    void otamanhoContaCaracteresEmVezDeBytes() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        // 1000 caracteres com acento, que ocupam 2000 bytes em UTF-8: é aceito.
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("ã".repeat(1000))))
+                .andExpect(status().isOk());
     }
 
     // ---- Limites diários do chat público -------------------------------------------------

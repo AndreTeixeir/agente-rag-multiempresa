@@ -208,7 +208,8 @@
       <div id="historico"></div>
 
       <form id="form-mensagem">
-        <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
+        <!-- maxlength acompanha app.demo.limites.tamanho-maximo-mensagem (application.yml); o backend valida de qualquer jeito. -->
+        <input id="mensagem" type="text" maxlength="1000" placeholder="Digite sua pergunta..." autocomplete="off">
         <button id="mic" type="button" aria-label="Falar pergunta" title="Falar pergunta">🎤</button>
         <button type="submit">Enviar</button>
       </form>

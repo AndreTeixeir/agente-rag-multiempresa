@@ -322,11 +322,29 @@ class LimitesDiariosIntegrationTest {
         assertThat(contagemDoTotal()).isEqualTo(20);
     }
 
+    // ---- Tamanho máximo da mensagem ------------------------------------------------------
+
+    @Test
+    void mensagemLongaDemaisRetorna400SemContarNemChamarOModelo() throws Exception {
+        int chamadasAoModeloAntes = provedor.requisicoes();
+
+        HttpResponse<String> resposta = postarChat("203.0.113.30", "a".repeat(1001));
+
+        assertThat(resposta.statusCode()).isEqualTo(400);
+        assertThat(erroDo(resposta)).isEqualTo("A mensagem pode ter no máximo 1000 caracteres.");
+        assertThat(linhasDoBanco()).as("não é pergunta aceita: nenhum contador foi tocado").isEmpty();
+        assertThat(provedor.requisicoes()).as("nem chegou ao modelo").isEqualTo(chamadasAoModeloAntes);
+    }
+
     // ---- apoio ---------------------------------------------------------------------------
 
     private HttpResponse<String> postarChat(String xForwardedFor) throws Exception {
+        return postarChat(xForwardedFor, "pergunta de teste");
+    }
+
+    private HttpResponse<String> postarChat(String xForwardedFor, String mensagem) throws Exception {
         String corpo = JSON.writeValueAsString(Map.of(
-                "threadId", UUID.randomUUID().toString(), "mensagem", "pergunta de teste", "empresaEscolhida", "bimbam"));
+                "threadId", UUID.randomUUID().toString(), "mensagem", mensagem, "empresaEscolhida", "bimbam"));
         HttpRequest.Builder requisicao = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + porta + "/api/chat"))
                 .header("Content-Type", "application/json")
                 .POST(BodyPublishers.ofString(corpo));
