@@ -4,9 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
-import br.com.andreteixeira.agenterag.ingestao.ChunkMetadata;
-import br.com.andreteixeira.agenterag.ingestao.EmbeddingProvider;
-import br.com.andreteixeira.agenterag.ingestao.VectorStore;
 import br.com.andreteixeira.agenterag.resposta.ServidorOpenAiFalso;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -33,10 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -55,10 +50,11 @@ import org.testcontainers.utility.DockerImageName;
  * o {@code OpenAiChatModel} montado por {@code RespostaConfig} (com a
  * política de repetição e o tempo limite da LangChain4j) e o servidor HTTP.
  * Substituídos: o provedor da Maritaca, por um {@link ServidorOpenAiFalso}
- * local; e o embedding e o vector store, por dublês que não saem do
- * processo — zero chamadas ao Gemini e à Maritaca. Sem {@code @Tag("llm")}.
+ * local; e o embedding e o vector store, pelos dublês de {@link DublesDoGrafoConfig},
+ * que não saem do processo — zero chamadas ao Gemini e à Maritaca. Sem {@code @Tag("llm")}.
  */
 @Testcontainers
+@Import(DublesDoGrafoConfig.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ErrosDoProvedorIntegrationTest {
 
@@ -89,25 +85,13 @@ class ErrosDoProvedorIntegrationTest {
         registry.add("GEMINI_API_KEY", () -> "chave-fake-do-gemini-nao-usada");
         registry.add("MARITACA_API_KEY", () -> "chave-fake-da-maritaca-nao-usada");
         registry.add("app.resposta.chat.base-url", servidor::baseUrl);
+        // Todos os testes postam do mesmo IP (127.0.0.1): sem isto, o limite de 10 por IP de
+        // produção estouraria assim que a classe ganhasse mais alguns casos.
+        registry.add("app.demo.limites.perguntas-por-dia", () -> "1000");
+        registry.add("app.demo.limites.perguntas-por-ip-por-dia", () -> "1000");
         // Só encurta o tempo limite (30 s em produção) para o teste não demorar;
         // max-retries continua o do application.yml.
         registry.add("app.resposta.chat.timeout", () -> "300ms");
-    }
-
-    @TestConfiguration
-    static class DubleConfig {
-
-        @Bean
-        @Primary
-        EmbeddingProvider embeddingProviderDeTeste() {
-            return new EmbeddingProviderDeTeste();
-        }
-
-        @Bean
-        @Primary
-        VectorStore vectorStoreDeTeste() {
-            return new VectorStoreComUmChunk();
-        }
     }
 
     @Autowired
@@ -258,65 +242,5 @@ class ErrosDoProvedorIntegrationTest {
             nomes.add(atual.getClass().getSimpleName());
         }
         return nomes;
-    }
-
-    /** Nada aqui é invocado de verdade: o vector store dublê devolve sempre o mesmo trecho. */
-    private static final class EmbeddingProviderDeTeste implements EmbeddingProvider {
-
-        private static final int DIMENSAO = 768;
-
-        @Override
-        public List<float[]> embedDocuments(List<String> textos) {
-            throw new UnsupportedOperationException("o teste não ingere documentos");
-        }
-
-        @Override
-        public float[] embedQuery(String texto) {
-            return new float[DIMENSAO];
-        }
-
-        @Override
-        public List<float[]> embedQueries(List<String> textos) {
-            throw new UnsupportedOperationException("o teste não usa o lote de consultas");
-        }
-
-        @Override
-        public int dimension() {
-            return DIMENSAO;
-        }
-    }
-
-    /** Devolve um trecho fixo acima de qualquer limiar, para a resposta sempre chegar ao chat model. */
-    private static final class VectorStoreComUmChunk implements VectorStore {
-
-        @Override
-        public void add(float[] embedding, String text, ChunkMetadata metadata) {
-            throw new UnsupportedOperationException("o teste não ingere documentos");
-        }
-
-        @Override
-        public List<SearchResult> search(String empresa, float[] queryEmbedding, int limit, double threshold) {
-            return List.of(new SearchResult("Trecho de teste.", "documento-teste.md", "Seção Teste", 0.95));
-        }
-
-        @Override
-        public long count() {
-            return 1;
-        }
-
-        @Override
-        public long countByEmpresa(String empresa) {
-            return 1;
-        }
-
-        @Override
-        public long countByDocumento(String documento) {
-            return 1;
-        }
-
-        @Override
-        public void deleteByDocumento(String documento) {
-            throw new UnsupportedOperationException("o teste não ingere documentos");
-        }
     }
 }

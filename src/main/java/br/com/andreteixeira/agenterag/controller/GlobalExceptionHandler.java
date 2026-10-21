@@ -1,6 +1,7 @@
 package br.com.andreteixeira.agenterag.controller;
 
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
+import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
 import dev.langchain4j.exception.HttpException;
 import dev.langchain4j.exception.LangChain4jException;
 import dev.langchain4j.exception.RateLimitException;
@@ -44,6 +45,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *     causas até achar um dos tipos acima, ou um {@link LangChain4jException}
  *     do provedor do modelo, e delega para o handler certo; sem achar, cai no
  *     genérico.</li>
+ *     <li>{@link LimiteDiarioExcedidoException} — limite diário do chat público
+ *     atingido (o total da demo ou o do IP) — 429, com a mensagem do caso. É
+ *     lançada pelo controller, antes de o grafo rodar, então chega "nua" e não
+ *     embrulhada em {@link CompletionException}.</li>
  *     <li>{@link LangChain4jException} — falha na chamada ao provedor do modelo
  *     de chat (confirmado no fonte da LangChain4j 1.18.1: o cliente HTTP
  *     traduz o status em exceção). Limite de requisições (429,
@@ -74,6 +79,10 @@ public class GlobalExceptionHandler {
             "O assistente atingiu o limite de uso no momento. Tente novamente mais tarde.";
     private static final String TEMPO_LIMITE_DO_PROVEDOR = "O assistente demorou demais para responder. Tente novamente.";
     private static final int HTTP_PAGAMENTO_NECESSARIO = 402;
+    private static final String LIMITE_TOTAL_DA_DEMO =
+            "A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília).";
+    private static final String LIMITE_DO_IP =
+            "Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília).";
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -98,6 +107,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleEstadoGrafoInvalido(EstadoGrafoInvalidoException ex) {
         log.error("Invariante interna do grafo quebrada", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("erro", ERRO_INTERNO_GENERICO));
+    }
+
+    @ExceptionHandler(LimiteDiarioExcedidoException.class)
+    public ResponseEntity<Map<String, String>> handleLimiteDiarioExcedido(LimiteDiarioExcedidoException ex) {
+        String mensagem = ex.tipo() == LimiteDiarioExcedidoException.Tipo.TOTAL ? LIMITE_TOTAL_DA_DEMO : LIMITE_DO_IP;
+        log.info("Pergunta recusada pelo limite diário: {}", ex.tipo());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("erro", mensagem));
     }
 
     @ExceptionHandler(LangChain4jException.class)

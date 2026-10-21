@@ -3,6 +3,9 @@ package br.com.andreteixeira.agenterag.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,6 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
+import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
+import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -57,6 +62,9 @@ class ChatControllerTest {
 
     @MockitoBean
     private ConversaService conversaService;
+
+    @MockitoBean
+    private LimiteDiarioService limiteDiarioService;
 
     private ListAppender<ILoggingEvent> logAppender;
 
@@ -222,6 +230,102 @@ class ChatControllerTest {
         assertThat(logAppender.list)
                 .as("404 de recurso estático não deve gerar log de erro")
                 .noneMatch(evento -> evento.getLevel() == Level.ERROR);
+    }
+
+    // ---- Limites diários do chat público -------------------------------------------------
+
+    @Test
+    void limiteTotalDaDemoRetorna429ComAMensagemDaDemoSemChamarOGrafo() throws Exception {
+        doThrow(new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.TOTAL))
+                .when(limiteDiarioService)
+                .registrarPergunta(anyString());
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.erro")
+                        .value("A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília)."));
+
+        verifyNoInteractions(conversaService);
+    }
+
+    @Test
+    void limiteDoIpRetorna429ComAMensagemDoIpSemChamarOGrafo() throws Exception {
+        doThrow(new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.IP))
+                .when(limiteDiarioService)
+                .registrarPergunta(anyString());
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.erro")
+                        .value("Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília)."));
+
+        verifyNoInteractions(conversaService);
+    }
+
+    @Test
+    void perguntaAceitaEhRegistradaComOIpDaConexaoAntesDeChamarOGrafo() throws Exception {
+        when(conversaService.responder("t1", "bimbam", "pergunta"))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        mockMvc.perform(post("/api/chat")
+                        .with(requisicao -> {
+                            requisicao.setRemoteAddr("203.0.113.5");
+                            return requisicao;
+                        })
+                        // O controller não lê este cabeçalho: quem o interpreta é o Tomcat, antes do
+                        // controller, e já entrega o IP resolvido em getRemoteAddr().
+                        .header("X-Forwarded-For", "198.51.100.9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isOk());
+
+        var ordem = inOrder(limiteDiarioService, conversaService);
+        ordem.verify(limiteDiarioService).registrarPergunta("203.0.113.5");
+        ordem.verify(conversaService).responder("t1", "bimbam", "pergunta");
+    }
+
+    @Test
+    void requisicaoInvalidaNaoContaComoPergunta() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(limiteDiarioService);
+    }
+
+    @Test
+    void perguntaQueFalhaNoGrafoJaFoiRegistradaNoLimite() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenThrow(new IllegalArgumentException("Empresa 'xyz' não reconhecida."));
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"xyz"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        // Contar é anterior ao grafo: a pergunta foi registrada no limitador mesmo com o grafo falhando.
+        // (Que a contagem de verdade persiste está no LimitesDiariosIntegrationTest.)
+        verify(limiteDiarioService).registrarPergunta(anyString());
     }
 
     // ---- Erros do provedor do modelo (Maritaca) ------------------------------------------
