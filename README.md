@@ -221,8 +221,10 @@ Como a contagem funciona:
 - **O IP vem do `X-Forwarded-For`**, enviado pelo Caddy, por
   `server.forward-headers-strategy: native`. O Tomcat só aceita o cabeçalho quando a conexão
   vem de um proxy interno (loopback e as faixas privadas, por padrão), então quem chegar direto
-  à aplicação, de fora dessas faixas, não consegue forjar o próprio IP. A porta da aplicação
-  (8000) não fica aberta para o exterior, só o Caddy.
+  à aplicação, de fora dessas faixas, não consegue forjar o próprio IP. Para que as faixas
+  privadas também não cheguem a ela, em produção a aplicação escuta só no loopback
+  (`127.0.0.1:8000`, pelo `SERVER_ADDRESS` do `deploy/sabia.service`): outras máquinas,
+  inclusive da rede privada, não a alcançam, e quem a chama é o Caddy, na mesma VM.
 
 ---
 
@@ -594,9 +596,10 @@ proxy reverso e terminação TLS com certificado Let's Encrypt.
 **A demonstração é o próprio endereço público:** https://andreteixeira.dev.br — incluindo a
 entrada por voz, que só funciona sob HTTPS por exigência da Web Speech API.
 
-A porta da aplicação (8000) fica fechada para o exterior; só 80 e 443 estão abertas, e as
-regras de firewall estão persistidas em disco. Chaves de API e senha do banco vêm por
-`EnvironmentFile`, nunca do repositório.
+A aplicação escuta só no loopback (`127.0.0.1:8000`, pelo `SERVER_ADDRESS` do
+`deploy/sabia.service`), e quem a chama é o Caddy, na mesma VM; para fora, só 80 e 443 estão
+abertas, e as regras de firewall estão persistidas em disco. Chaves de API e senha do banco vêm
+por `EnvironmentFile`, nunca do repositório.
 
 ### Comprovação de que a infraestrutura é OCI
 

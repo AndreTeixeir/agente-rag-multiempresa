@@ -12,6 +12,7 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/agente-rag-multiempresa
 EnvironmentFile=/home/ubuntu/.env
 Environment="SERVER_PORT=8000"
+Environment="SERVER_ADDRESS=127.0.0.1"
 ExecStart=/usr/bin/java -jar /home/ubuntu/agente-rag-multiempresa/target/agente-rag-0.0.1-SNAPSHOT.jar
 SuccessExitStatus=143
 Restart=on-failure
