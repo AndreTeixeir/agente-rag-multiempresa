@@ -380,6 +380,117 @@ granularidade de seção é onde o chunking híbrido ainda erra.
 
 ---
 
+## Avaliação das respostas
+
+A avaliação de retrieval mede se o trecho certo chega ao modelo. Esta mede o que chega a quem
+pergunta: a resposta final.
+
+### Como foi feita
+
+Em 28/10/2026, com o `sabiazinho-4` e o banco com os 719 chunks da estratégia híbrida. Os 43
+casos do `avaliacao.yaml` foram enviados ao `POST /api/chat` — o mesmo caminho do site —, cada
+um numa conversa nova. Mais duas conversas de duas perguntas, em que a segunda só faz sentido
+com a primeira, testaram a reescrita da consulta e a empresa fixa.
+
+Cada resposta recebeu **certo**, **parcial** ou **errado**, com critérios por categoria:
+
+- **Fatos precisos e colisões com fato esperado:** certo se traz o fato esperado (pelo sentido,
+  não pela letra), só com dados da empresa certa e sem nada contraditório ou inventado; parcial
+  se o fato vem incompleto, ou acompanhado de afirmação sem apoio no documento que não o
+  contradiz; errado se o fato está errado ou ausente, se recusa quando a resposta existe ou se
+  inventa.
+- **Fora de escopo e colisões com recusa:** certo se admite que não tem a informação, sem
+  inventar; errado se inventa ou responde com dados de outra empresa.
+- **Ambiguidades e defeitos:** certo se cita os dois valores ou as duas fontes e aponta a
+  divergência; parcial se cita os dois sem apontar o conflito, ou um só com ressalva de
+  incerteza; errado se escolhe um valor como se fosse certo, inventa um terceiro ou recusa por
+  completo.
+
+A nota foi dada por um modelo de linguagem como avaliador (LLM-as-a-judge), em duas avaliações
+independentes, com os mesmos critérios e sem uma ver as notas da outra; as divergências ficam
+registradas. A primeira também conferiu no texto dos documentos as afirmações extras de 7
+respostas; a segunda viu só as respostas e o conjunto de casos.
+
+### Resultado
+
+| Categoria | Casos | Avaliação 1 | Avaliação 2 |
+|---|---|---|---|
+| Fatos precisos | 19 | 14 / 1 / 4 | 14 / 1 / 4 |
+| Colisões entre empresas | 9 | 7 / 1 / 1 | 8 / 0 / 1 |
+| Fora de escopo | 10 | 10 / 0 / 0 | 10 / 0 / 0 |
+| Ambiguidades e defeitos | 5 | 3 / 1 / 1 | 4 / 0 / 1 |
+| **Total** | **43** | **34 / 3 / 6** | **36 / 1 / 6** |
+
+*Certo / parcial / errado.* As duas avaliações concordam em 41 dos 43 casos e nos mesmos 6
+errados; nas 2 divergências, uma deu parcial e a outra, certo.
+
+- **Nenhum fato inventado** identificado nas 43 respostas.
+- **Nenhum vazamento entre empresas**, inclusive nas 9 colisões: nenhuma resposta usou dado de
+  documento de outra empresa, e nenhuma fonte recuperada era de outra empresa.
+- **5 recusas sem chamar o modelo**, barradas pela comporta 1.
+- **Tempo por pergunta:** mediana de 1,6 s e máximo de 5,1 s.
+- **Conversas:** a reescrita transformou a segunda pergunta numa pergunta completa e no assunto
+  certo, e a empresa ficou fixa sem ser reenviada. Mas as duas respostas da segunda pergunta
+  saíram erradas, pelo mesmo motivo dos 6 erros abaixo: a seção com o fato (a 5.2 da BimBam; a
+  do SEV-2 na Santo Pegasus) não veio entre os 5 trechos.
+
+### Os 6 erros
+
+Em todos, a seção com a resposta ficou fora dos 5 trechos enviados ao modelo. Em 5 deles o
+modelo admitiu não ter a informação em vez de inventar — é a comporta 2 funcionando. No sexto
+(o prazo de notificação à ANPD, que os documentos dão de dois modos), respondeu só com o valor
+que estava no contexto. O erro está na busca, não na geração.
+
+Quatro dos seis são perguntas sobre a BimBam. A causa provável — **uma hipótese, ainda não
+medida** — é a combinação de seções curtas com o nome da empresa na pergunta:
+
+- o título da seção não entra no texto que vira vetor: o `HybridChunkingStrategy` o guarda só
+  no metadado `secao`;
+- as quatro seções com o fato (`5.1 Arrependimento de compra`, 183 caracteres; `5.4 Reembolso
+  aprovado`, 141; `5.2 Entrega estimada`, 132; `5. Prazos de garantia`, 286) são curtas e não
+  citam "BimBam" no corpo;
+- as quatro perguntas citam "BimBam Buy", e em cada uma as 5 seções recuperadas no lugar citam
+  o nome, de 1 a 3 vezes — entre elas seções genéricas como `1. Propósito`, `2. Escopo`,
+  `9. Cobertura geográfica` e as `Notas de coordenação com outros documentos`;
+- os documentos da BimBam são os mais picados: 243 seções com texto e mediana de 214
+  caracteres, contra 158 seções e mediana de 463 no Mercado Central, e 164 e 508,5 na Santo
+  Pegasus (medidas no corpo da seção, sem o título).
+
+A evidência mais direta é pareada. Duas das quatro perguntas têm, no conjunto, uma versão sem o
+nome da empresa — o prazo de arrependimento e o prazo do reembolso aprovado — e essas acertam:
+a seção certa vem em primeiro lugar, e nenhuma das 10 seções recuperadas cita "BimBam". São
+dois pares, o que sugere a causa sem prová-la. Os 13 fatos precisos do Mercado Central e da
+Santo Pegasus, de seções mais longas, não tiveram nenhuma resposta errada. Os outros dois erros
+são da Santo Pegasus e não foram investigados.
+
+É o mesmo ponto já registrado na [Limitação conhecida](#limitação-conhecida) da avaliação de
+retrieval: a granularidade de seção é onde o chunking híbrido ainda erra.
+
+### Decisão sobre o modelo
+
+A troca para o Sabiá-4, o modelo maior da Maritaca, foi considerada. Pela tabela pública da
+Maritaca, consultada em outubro de 2026, em reais por milhão de tokens:
+
+| Modelo | Entrada | Saída |
+|---|---|---|
+| Sabiazinho-4 | R$ 1 | R$ 4 |
+| Sabiá-4 | R$ 5 | R$ 20 |
+
+Cinco vezes o preço, na entrada e na saída. Como os erros vêm da busca, e o modelo maior
+receberia os mesmos 5 trechos, a troca não foi adotada.
+
+### Próximos passos para a busca
+
+Ideias ainda não medidas:
+
+- pôr o título da seção no texto que vira vetor, o que exige nova carga dos documentos;
+- tirar o nome da empresa da pergunta antes de gerar o vetor, já que o filtro por empresa é
+  feito no banco;
+- passar de 5 para 8 trechos no contexto;
+- medir antes e depois com a avaliação de retrieval que já existe.
+
+---
+
 ## Exemplos de respostas
 
 ### Comporta 1 — barrado antes do LLM
@@ -546,8 +657,9 @@ que um modelo do fornecedor saiu do ar em pleno curso. A prática que ficou: nom
 explícito no `application.yml`, nunca um alias genérico, que muda sob os pés.
 
 Depois disso, a geração passou para o Sabiazinho-4, da Maritaca (API compatível com a OpenAI);
-os embeddings seguem no `gemini-embedding-001`. A comparação medida entre os modelos ainda não
-foi feita.
+os embeddings seguem no `gemini-embedding-001`. A qualidade das respostas com o Sabiazinho-4 foi
+medida depois, e a troca por um modelo maior foi considerada e não adotada — ver
+[Avaliação das respostas](#avaliação-das-respostas).
 
 ### O `.env` era ignorado em silêncio
 
