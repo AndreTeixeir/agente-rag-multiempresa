@@ -21,12 +21,37 @@ spring:
       # (o pgvector é acessado via JDBC direto), então não há o que validar.
       ddl-auto: validate
 
+server:
+  # A aplicação roda atrás do Caddy (HTTPS), que envia o IP de quem chamou em
+  # X-Forwarded-For. "native" delega ao RemoteIpValve do Tomcat: ele só aceita o
+  # cabeçalho quando a conexão vem de um proxy interno (por padrão, loopback e as
+  # faixas privadas 10/8, 172.16/12, 192.168/16 e outras — ver
+  # server.tomcat.remoteip.internal-proxies) e, no cabeçalho, usa o primeiro IP
+  # da direita que não seja proxy interno. Assim, request.getRemoteAddr() já devolve
+  # o IP do cliente real, e um X-Forwarded-For forjado por um cliente de fora dessas
+  # faixas que chegue direto à aplicação é ignorado. Quem estiver dentro delas (outro
+  # processo da VM, outra máquina da VCN) é tratado como proxy e pode forjar o IP:
+  # a porta da aplicação não deve ficar acessível a quem não seja o proxy.
+  forward-headers-strategy: native
+
 management:
   endpoint:
     health:
       show-details: always
 
 app:
+  demo:
+    # Proteção do chat público (/api/chat). As perguntas por dia são contadas por pergunta
+    # aceita, no Postgres (tabela limite_diario, V4), então sobrevivem a reinício e
+    # deploy. O dia vira à meia-noite do fuso abaixo. Zero bloqueia todas as perguntas.
+    limites:
+      perguntas-por-dia: 100
+      perguntas-por-ip-por-dia: 10
+      fuso: America/Sao_Paulo
+      # Máximo de caracteres de uma mensagem do chat. Acima disso a API responde 400,
+      # sem contar a pergunta e sem chamar o modelo. O index.html repete este valor no
+      # maxlength do campo de mensagem — ao mudar um, mude o outro.
+      tamanho-maximo-mensagem: 1000
   ingestao:
     embedding:
       # Chave nunca em texto puro no repositório público — só a variável.
@@ -65,11 +90,22 @@ app:
     pausa-entre-chamadas-ms: 65000
   resposta:
     chat:
-      # Mesma variável de ambiente do embedding — carrega via spring.config.import
-      # (ver comentário no topo deste arquivo).
-      api-key: ${GEMINI_API_KEY}
-      # Fixado explicitamente (CLAUDE.md) — não trocar por alias genérico.
-      model-name: gemini-3.6-flash
+      # API compatível com a da OpenAI, da Maritaca. A LangChain4j acrescenta
+      # /chat/completions a este endereço.
+      base-url: https://chat.maritaca.ai/api
+      # Chave da Maritaca, distinta da do embedding (GEMINI_API_KEY). Sem valor
+      # padrão, como a do Gemini — carrega via spring.config.import (ver
+      # comentário no topo deste arquivo).
+      api-key: ${MARITACA_API_KEY}
+      # Versão do modelo fixada explicitamente — não trocar por alias genérico.
+      model-name: sabiazinho-4
+      # Tempo limite de cada tentativa. A LangChain4j aplica o mesmo valor à
+      # conexão e à leitura da resposta.
+      timeout: 30s
+      # Novas tentativas automáticas depois da primeira (a chamada executa no
+      # máximo max-retries + 1 vezes). Só erro "retriable" é repetido: 429, 5xx
+      # e tempo limite. 401 e os demais 4xx (inclusive 402) não são repetidos.
+      max-retries: 1
     # Quantos chunks recuperados entram no contexto do prompt.
     limit: 5
     # Limiar de score de cosseno (0 a 1) para um chunk ser considerado

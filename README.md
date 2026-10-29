@@ -1,5 +1,7 @@
 # SabIA — agente RAG multi-empresa
 
+[![CI](https://github.com/AndreTeixeir/agente-rag-multiempresa/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreTeixeir/agente-rag-multiempresa/actions/workflows/ci.yml)
+
 Agente conversacional que responde perguntas sobre a documentação interna de três empresas
 fictícias, mantendo isolamento estrito entre elas: a mesma pergunta feita a empresas
 diferentes recupera documentos diferentes e produz respostas diferentes.
@@ -86,12 +88,13 @@ entre perguntas com resposta real foi `0.7201`.
 | Orquestração de LLM | LangChain4j 1.18.1 |
 | Grafo de estado | LangGraph4j 1.9.0-beta2 (`langgraph4j-core` + `langgraph4j-postgres-saver`) |
 | Banco vetorial | PostgreSQL 16 + pgvector |
-| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints) |
+| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints, `V4` limites diários) |
 | Embeddings | `gemini-embedding-001`, 768 dimensões, normalização L2 manual |
-| Geração | `gemini-3.6-flash` |
+| Geração | Sabiazinho-4 (`sabiazinho-4`), da Maritaca, pela API compatível com a OpenAI |
 | Interface | HTML/JS estático servido pelo próprio Spring Boot |
 | Entrada por voz | Web Speech API (`SpeechRecognition`), `pt-BR` |
-| Testes | JUnit 5, AssertJ, Mockito |
+| Testes | JUnit 5, AssertJ, Mockito, Testcontainers |
+| CI | GitHub Actions — `./mvnw test` em todo push e pull request |
 | Deploy | OCI Ampere A1 (ARM64), Ubuntu 24.04, systemd, Caddy + Let's Encrypt |
 
 ---
@@ -102,7 +105,7 @@ entre perguntas com resposta real foi `0.7201`.
 
 - Java 21
 - Docker e Docker Compose
-- Uma chave de API do Google AI Studio
+- Uma chave de API do Google AI Studio (embeddings) e uma da Maritaca (geração das respostas)
 
 ### 1. Banco
 
@@ -114,13 +117,17 @@ Sobe `pgvector/pgvector:pg16` na porta **5434** (não a 5432, para não colidir 
 Postgres local), banco `agenterag`, usuário e senha `rag`. O Flyway aplica as migrações no
 boot da aplicação.
 
-### 2. Chave de API
+### 2. Chaves de API
 
 Crie um arquivo `.env` na raiz do projeto:
 
 ```properties
-GEMINI_API_KEY=sua-chave-aqui
+GEMINI_API_KEY=sua-chave-do-google-aqui
+MARITACA_API_KEY=sua-chave-da-maritaca-aqui
 ```
+
+`GEMINI_API_KEY` é a dos embeddings (ingestão e consulta); `MARITACA_API_KEY` é a da geração
+das respostas.
 
 ```bash
 chmod 600 .env
@@ -129,6 +136,9 @@ chmod 600 .env
 O `.env` é carregado por `spring.config.import: optional:file:.env[.properties]`. **O
 sufixo `[.properties]` é obrigatório** — sem ele o Spring não reconhece a extensão, ignora
 o arquivo em silêncio e a chave chega ao Google como o literal `${GEMINI_API_KEY}`.
+
+O mesmo vale para uma variável ausente: o boot não falha, e a chave chega à API como o literal
+`${MARITACA_API_KEY}` — as perguntas deixam de ser respondidas, sem erro na subida.
 
 ### 3. Ingestão
 
@@ -157,7 +167,8 @@ Interface em `http://localhost:8080`, health em `/health`.
 
 | Variável | Default | Observação |
 |---|---|---|
-| `GEMINI_API_KEY` | — | obrigatória |
+| `GEMINI_API_KEY` | — | obrigatória — embeddings |
+| `MARITACA_API_KEY` | — | obrigatória — geração das respostas |
 | `DB_URL` | `jdbc:postgresql://localhost:5434/agenterag` | |
 | `DB_USERNAME` | `rag` | |
 | `DB_PASSWORD` | `rag` | |
@@ -174,13 +185,60 @@ Existe para tornar a decisão de chunking mensurável, não teórica — ver se�
 
 ---
 
+## Limites da demo
+
+O chat é público, e cada pergunta custa uma ou duas chamadas ao modelo (duas a partir da
+segunda pergunta de uma conversa, por causa da reescrita de consulta). Por isso a demo tem
+limites, todos em `app.demo.limites`, no `application.yml`:
+
+| Limite | Valor |
+|---|---|
+| Perguntas por dia, somando todo mundo | 100 |
+| Perguntas por dia, por IP | 10 |
+| Tamanho de cada mensagem | 1.000 caracteres |
+
+O que acontece quando um limite acaba. A interface mostra a mensagem como um aviso dentro da
+conversa (429 e 503) ou no banner de erro acima dela (400), e a conversa continua funcionando:
+
+| Situação | Resposta | Mensagem |
+|---|---|---|
+| As 100 perguntas do dia acabaram | HTTP 429 | A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
+| As 10 perguntas do IP acabaram | HTTP 429 | Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
+| Mensagem com mais de 1.000 caracteres | HTTP 400 | A mensagem pode ter no máximo 1000 caracteres. |
+| O provedor do modelo recusou por limite de uso ou saldo | HTTP 503 | O assistente atingiu o limite de uso no momento. Tente novamente mais tarde. |
+| O provedor do modelo não respondeu no tempo limite (30 s por tentativa, com uma nova tentativa) | HTTP 503 | O assistente demorou demais para responder. Tente novamente. |
+
+Como a contagem funciona:
+
+- **Conta pergunta aceita**, antes de o grafo rodar. Mensagem longa demais e pergunta recusada
+  por um limite não contam e não chegam ao modelo.
+- **Os contadores ficam no Postgres** (migração `V4`), então sobrevivem a reinício e deploy. O
+  incremento é um único `INSERT ... ON CONFLICT DO UPDATE`, atômico com requisições
+  simultâneas.
+- **O dia vira à meia-noite de `America/Sao_Paulo`.**
+- **O IP não é gravado em texto**, só o hash SHA-256. As contagens por IP de dias anteriores
+  são apagadas; as do total ficam 7 dias.
+- **O IP vem do `X-Forwarded-For`**, enviado pelo Caddy, por
+  `server.forward-headers-strategy: native`. O Tomcat só aceita o cabeçalho quando a conexão
+  vem de um proxy interno (loopback e as faixas privadas, por padrão), então quem chegar direto
+  à aplicação, de fora dessas faixas, não consegue forjar o próprio IP. Para que as faixas
+  privadas também não cheguem a ela, em produção a aplicação escuta só no loopback
+  (`127.0.0.1:8000`, pelo `SERVER_ADDRESS` do `deploy/sabia.service`): outras máquinas,
+  inclusive da rede privada, não a alcançam, e quem a chama é o Caddy, na mesma VM.
+
+---
+
 ## Testes
 
 ```bash
 ./mvnw test
 ```
 
-17 testes, todos offline. **Exige Docker**: o teste de integração sobe o próprio container.
+80 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
+
+Os mesmos testes rodam no GitHub Actions a cada push e pull request
+(`.github/workflows/ci.yml`, Java 21 Temurin), sem Postgres local e sem chaves reais — por
+isso o teste de contexto também usa Testcontainers e chaves falsas.
 
 Testes que consomem API paga levam `@Tag("llm")` e ficam **fora** do `mvn test` padrão. Para
 rodar um deles explicitamente:
@@ -188,6 +246,9 @@ rodar um deles explicitamente:
 ```bash
 ./mvnw test -Dtest=NomeDaClasse -Dgroups=llm -Dsurefire.excludedGroups=
 ```
+
+`MaritacaSmokeTest` e `GeminiEmbeddingSmokeTest` fazem, cada um, uma única chamada real: a da
+geração e a dos embeddings.
 
 O `-Dsurefire.excludedGroups=` é obrigatório. Um valor literal em `<excludedGroups>` não
 pode ser sobrescrito por `-D` — o XML da configuração do plugin vence a propriedade de
@@ -205,7 +266,7 @@ perguntas do conjunto **sem chamar a API**.
 ### O teste que vale mais que os outros
 
 `IngestaoIntegrationTest` sobe um Postgres real com pgvector via Testcontainers, aplica as
-três migrações do Flyway e injeta um `EmbeddingProvider` determinístico — nenhuma chamada de
+migrações do Flyway e injeta um `EmbeddingProvider` determinístico — nenhuma chamada de
 rede.
 
 O caso central prova o invariante do projeto com uma armadilha deliberada: **o vetor de um
@@ -215,6 +276,15 @@ Central.** Numa busca filtrada por `mercado-central`, ele ainda assim não apare
 Isso demonstra que o isolamento entre empresas é propriedade do filtro no banco, não
 confiança na geometria do embedding. Um teste que só verificasse "a busca retorna o
 documento certo" passaria mesmo se o filtro fosse removido.
+
+### Erros do provedor e limites, contra o grafo de verdade
+
+`ErrosDoProvedorIntegrationTest` e `LimitesDiariosIntegrationTest` sobem o grafo real, o
+Postgres em container e um Tomcat real, com um servidor HTTP local no lugar do provedor do
+modelo — nenhuma chamada paga. Existem porque um teste com o serviço mockado não pega o que o
+`CompiledGraph` faz com as exceções (embrulha tudo em `CompletionException`): o mock lança a
+exceção direto. O segundo cobre o incremento concorrente, o rollback do total quando o limite
+por IP recusa, a retenção, a virada do dia e a leitura do `X-Forwarded-For`.
 
 ---
 
@@ -309,6 +379,117 @@ exatamente por isso que existe a segunda comporta.
 De 27 casos com documento correto e seção esperada definida, em 10 o documento bateu mas a
 seção recuperada não foi a esperada. O documento certo é recuperado em 100% dos casos; a
 granularidade de seção é onde o chunking híbrido ainda erra.
+
+---
+
+## Avaliação das respostas
+
+A avaliação de retrieval mede se o trecho certo chega ao modelo. Esta mede o que chega a quem
+pergunta: a resposta final.
+
+### Como foi feita
+
+Em 28/10/2026, com o `sabiazinho-4` e o banco com os 719 chunks da estratégia híbrida. Os 43
+casos do `avaliacao.yaml` foram enviados ao `POST /api/chat` — o mesmo caminho do site —, cada
+um numa conversa nova. Mais duas conversas de duas perguntas, em que a segunda só faz sentido
+com a primeira, testaram a reescrita da consulta e a empresa fixa.
+
+Cada resposta recebeu **certo**, **parcial** ou **errado**, com critérios por categoria:
+
+- **Fatos precisos e colisões com fato esperado:** certo se traz o fato esperado (pelo sentido,
+  não pela letra), só com dados da empresa certa e sem nada contraditório ou inventado; parcial
+  se o fato vem incompleto, ou acompanhado de afirmação sem apoio no documento que não o
+  contradiz; errado se o fato está errado ou ausente, se recusa quando a resposta existe ou se
+  inventa.
+- **Fora de escopo e colisões com recusa:** certo se admite que não tem a informação, sem
+  inventar; errado se inventa ou responde com dados de outra empresa.
+- **Ambiguidades e defeitos:** certo se cita os dois valores ou as duas fontes e aponta a
+  divergência; parcial se cita os dois sem apontar o conflito, ou um só com ressalva de
+  incerteza; errado se escolhe um valor como se fosse certo, inventa um terceiro ou recusa por
+  completo.
+
+A nota foi dada por um modelo de linguagem como avaliador (LLM-as-a-judge), em duas avaliações
+independentes, com os mesmos critérios e sem uma ver as notas da outra; as divergências ficam
+registradas. A primeira também conferiu no texto dos documentos as afirmações extras de 7
+respostas; a segunda viu só as respostas e o conjunto de casos.
+
+### Resultado
+
+| Categoria | Casos | Avaliação 1 | Avaliação 2 |
+|---|---|---|---|
+| Fatos precisos | 19 | 14 / 1 / 4 | 14 / 1 / 4 |
+| Colisões entre empresas | 9 | 7 / 1 / 1 | 8 / 0 / 1 |
+| Fora de escopo | 10 | 10 / 0 / 0 | 10 / 0 / 0 |
+| Ambiguidades e defeitos | 5 | 3 / 1 / 1 | 4 / 0 / 1 |
+| **Total** | **43** | **34 / 3 / 6** | **36 / 1 / 6** |
+
+*Certo / parcial / errado.* As duas avaliações concordam em 41 dos 43 casos e nos mesmos 6
+errados; nas 2 divergências, uma deu parcial e a outra, certo.
+
+- **Nenhum fato inventado** identificado nas 43 respostas.
+- **Nenhum vazamento entre empresas**, inclusive nas 9 colisões: nenhuma resposta usou dado de
+  documento de outra empresa, e nenhuma fonte recuperada era de outra empresa.
+- **5 recusas sem chamar o modelo**, barradas pela comporta 1.
+- **Tempo por pergunta:** mediana de 1,6 s e máximo de 5,1 s.
+- **Conversas:** a reescrita transformou a segunda pergunta numa pergunta completa e no assunto
+  certo, e a empresa ficou fixa sem ser reenviada. Mas as duas respostas da segunda pergunta
+  saíram erradas, pelo mesmo motivo dos 6 erros abaixo: a seção com o fato (a 5.2 da BimBam; a
+  do SEV-2 na Santo Pegasus) não veio entre os 5 trechos.
+
+### Os 6 erros
+
+Em todos, a seção com a resposta ficou fora dos 5 trechos enviados ao modelo. Em 5 deles o
+modelo admitiu não ter a informação em vez de inventar — é a comporta 2 funcionando. No sexto
+(o prazo de notificação à ANPD, que os documentos dão de dois modos), respondeu só com o valor
+que estava no contexto. O erro está na busca, não na geração.
+
+Quatro dos seis são perguntas sobre a BimBam. A causa provável — **uma hipótese, ainda não
+medida** — é a combinação de seções curtas com o nome da empresa na pergunta:
+
+- o título da seção não entra no texto que vira vetor: o `HybridChunkingStrategy` o guarda só
+  no metadado `secao`;
+- as quatro seções com o fato (`5.1 Arrependimento de compra`, 183 caracteres; `5.4 Reembolso
+  aprovado`, 141; `5.2 Entrega estimada`, 132; `5. Prazos de garantia`, 286) são curtas e não
+  citam "BimBam" no corpo;
+- as quatro perguntas citam "BimBam Buy", e em cada uma as 5 seções recuperadas no lugar citam
+  o nome, de 1 a 3 vezes — entre elas seções genéricas como `1. Propósito`, `2. Escopo`,
+  `9. Cobertura geográfica` e as `Notas de coordenação com outros documentos`;
+- os documentos da BimBam são os mais picados: 243 seções com texto e mediana de 214
+  caracteres, contra 158 seções e mediana de 463 no Mercado Central, e 164 e 508,5 na Santo
+  Pegasus (medidas no corpo da seção, sem o título).
+
+A evidência mais direta é pareada. Duas das quatro perguntas têm, no conjunto, uma versão sem o
+nome da empresa — o prazo de arrependimento e o prazo do reembolso aprovado — e essas acertam:
+a seção certa vem em primeiro lugar, e nenhuma das 10 seções recuperadas cita "BimBam". São
+dois pares, o que sugere a causa sem prová-la. Os 13 fatos precisos do Mercado Central e da
+Santo Pegasus, de seções mais longas, não tiveram nenhuma resposta errada. Os outros dois erros
+são da Santo Pegasus e não foram investigados.
+
+É o mesmo ponto já registrado na [Limitação conhecida](#limitação-conhecida) da avaliação de
+retrieval: a granularidade de seção é onde o chunking híbrido ainda erra.
+
+### Decisão sobre o modelo
+
+A troca para o Sabiá-4, o modelo maior da Maritaca, foi considerada. Pela tabela pública da
+Maritaca, consultada em outubro de 2026, em reais por milhão de tokens:
+
+| Modelo | Entrada | Saída |
+|---|---|---|
+| Sabiazinho-4 | R$ 1 | R$ 4 |
+| Sabiá-4 | R$ 5 | R$ 20 |
+
+Cinco vezes o preço, na entrada e na saída. Como os erros vêm da busca, e o modelo maior
+receberia os mesmos 5 trechos, a troca não foi adotada.
+
+### Próximos passos para a busca
+
+Ideias ainda não medidas:
+
+- pôr o título da seção no texto que vira vetor, o que exige nova carga dos documentos;
+- tirar o nome da empresa da pergunta antes de gerar o vetor, já que o filtro por empresa é
+  feito no banco;
+- passar de 5 para 8 trechos no contexto;
+- medir antes e depois com a avaliação de retrieval que já existe.
 
 ---
 
@@ -415,9 +596,10 @@ proxy reverso e terminação TLS com certificado Let's Encrypt.
 **A demonstração é o próprio endereço público:** https://andreteixeira.dev.br — incluindo a
 entrada por voz, que só funciona sob HTTPS por exigência da Web Speech API.
 
-A porta da aplicação (8000) fica fechada para o exterior; só 80 e 443 estão abertas, e as
-regras de firewall estão persistidas em disco. Chave de API e senha do banco vêm por
-`EnvironmentFile`, nunca do repositório.
+A aplicação escuta só no loopback (`127.0.0.1:8000`, pelo `SERVER_ADDRESS` do
+`deploy/sabia.service`), e quem a chama é o Caddy, na mesma VM; para fora, só 80 e 443 estão
+abertas, e as regras de firewall estão persistidas em disco. Chaves de API e senha do banco vêm
+por `EnvironmentFile`, nunca do repositório.
 
 ### Comprovação de que a infraestrutura é OCI
 
@@ -472,10 +654,15 @@ quando a dimensionalidade é reduzida, e sem isso a similaridade de cosseno fica
 
 ### O modelo de geração previsto saiu do ar
 
-O projeto usa **`gemini-3.6-flash`**. O modelo fixado no plano original foi descontinuado
+O projeto usou **`gemini-3.6-flash`**. O modelo fixado no plano original foi descontinuado
 durante o desenvolvimento e passou a responder 404 — a segunda vez, no mesmo projeto, em
 que um modelo do fornecedor saiu do ar em pleno curso. A prática que ficou: nome exato e
 explícito no `application.yml`, nunca um alias genérico, que muda sob os pés.
+
+Depois disso, a geração passou para o Sabiazinho-4, da Maritaca (API compatível com a OpenAI);
+os embeddings seguem no `gemini-embedding-001`. A qualidade das respostas com o Sabiazinho-4 foi
+medida depois, e a troca por um modelo maior foi considerada e não adotada — ver
+[Avaliação das respostas](#avaliação-das-respostas).
 
 ### O `.env` era ignorado em silêncio
 
@@ -488,7 +675,7 @@ para o lugar errado. Corrigido com o sufixo `[.properties]`.
 
 Com teto diário de requisições de geração, uma suíte que chama o modelo a cada `mvn test`
 seria inviável. Daí três medidas: `@Tag("llm")` excluído por padrão via property no Surefire,
-fixture de embeddings versionada para o harness de 32 casos rodar sem rede, e pausa
+fixture de embeddings versionada para o harness de 43 casos rodar sem rede, e pausa
 configurável entre documentos na ingestão.
 
 ### Dois firewalls em série na OCI

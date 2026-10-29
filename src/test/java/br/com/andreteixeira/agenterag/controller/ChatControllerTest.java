@@ -3,6 +3,9 @@ package br.com.andreteixeira.agenterag.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,18 +15,36 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
+import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
+import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
+import br.com.andreteixeira.agenterag.limite.LimitesProperties;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import dev.langchain4j.exception.AuthenticationException;
+import dev.langchain4j.exception.HttpException;
+import dev.langchain4j.exception.InternalServerException;
+import dev.langchain4j.exception.InvalidRequestException;
+import dev.langchain4j.exception.LangChain4jException;
+import dev.langchain4j.exception.RateLimitException;
+import dev.langchain4j.exception.TimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
+import org.bsc.langgraph4j.GraphRunnerException;
+import org.bsc.langgraph4j.RunnableConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -36,6 +57,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code @Tag("llm")}: roda no {@code mvn test} padrão.
  */
 @WebMvcTest(ChatController.class)
+// O slice não cria beans de @ConfigurationProperties; os valores de app.demo.limites vêm do
+// application.yml de verdade (tamanho máximo da mensagem: 1000).
+@EnableConfigurationProperties(LimitesProperties.class)
 class ChatControllerTest {
 
     @Autowired
@@ -43,6 +67,9 @@ class ChatControllerTest {
 
     @MockitoBean
     private ConversaService conversaService;
+
+    @MockitoBean
+    private LimiteDiarioService limiteDiarioService;
 
     private ListAppender<ILoggingEvent> logAppender;
 
@@ -208,5 +235,253 @@ class ChatControllerTest {
         assertThat(logAppender.list)
                 .as("404 de recurso estático não deve gerar log de erro")
                 .noneMatch(evento -> evento.getLevel() == Level.ERROR);
+    }
+
+    // ---- Tamanho máximo da mensagem (1000 caracteres, de app.demo.limites) ----------------
+
+    private static String corpoComMensagem(String mensagem) {
+        return "{\"threadId\":\"t1\",\"mensagem\":\"" + mensagem + "\",\"empresaEscolhida\":\"bimbam\"}";
+    }
+
+    @Test
+    void mensagemComMaisDeMilCaracteresRetorna400SemContarNemChamarOGrafo() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("a".repeat(1001))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.erro").value("A mensagem pode ter no máximo 1000 caracteres."));
+
+        verifyNoInteractions(limiteDiarioService, conversaService);
+    }
+
+    @Test
+    void mensagemComExatamenteMilCaracteresEhAceita() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("a".repeat(1000))))
+                .andExpect(status().isOk());
+
+        verify(limiteDiarioService).registrarPergunta(anyString());
+    }
+
+    @Test
+    void otamanhoContaCaracteresEmVezDeBytes() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        // 1000 caracteres com acento, que ocupam 2000 bytes em UTF-8: é aceito.
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpoComMensagem("ã".repeat(1000))))
+                .andExpect(status().isOk());
+    }
+
+    // ---- Limites diários do chat público -------------------------------------------------
+
+    @Test
+    void limiteTotalDaDemoRetorna429ComAMensagemDaDemoSemChamarOGrafo() throws Exception {
+        doThrow(new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.TOTAL))
+                .when(limiteDiarioService)
+                .registrarPergunta(anyString());
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.erro")
+                        .value("A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília)."));
+
+        verifyNoInteractions(conversaService);
+    }
+
+    @Test
+    void limiteDoIpRetorna429ComAMensagemDoIpSemChamarOGrafo() throws Exception {
+        doThrow(new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.IP))
+                .when(limiteDiarioService)
+                .registrarPergunta(anyString());
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.erro")
+                        .value("Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília)."));
+
+        verifyNoInteractions(conversaService);
+    }
+
+    @Test
+    void perguntaAceitaEhRegistradaComOIpDaConexaoAntesDeChamarOGrafo() throws Exception {
+        when(conversaService.responder("t1", "bimbam", "pergunta"))
+                .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
+
+        mockMvc.perform(post("/api/chat")
+                        .with(requisicao -> {
+                            requisicao.setRemoteAddr("203.0.113.5");
+                            return requisicao;
+                        })
+                        // O controller não lê este cabeçalho: quem o interpreta é o Tomcat, antes do
+                        // controller, e já entrega o IP resolvido em getRemoteAddr().
+                        .header("X-Forwarded-For", "198.51.100.9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isOk());
+
+        var ordem = inOrder(limiteDiarioService, conversaService);
+        ordem.verify(limiteDiarioService).registrarPergunta("203.0.113.5");
+        ordem.verify(conversaService).responder("t1", "bimbam", "pergunta");
+    }
+
+    @Test
+    void requisicaoInvalidaNaoContaComoPergunta() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(limiteDiarioService);
+    }
+
+    @Test
+    void perguntaQueFalhaNoGrafoJaFoiRegistradaNoLimite() throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString()))
+                .thenThrow(new IllegalArgumentException("Empresa 'xyz' não reconhecida."));
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"xyz"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        // Contar é anterior ao grafo: a pergunta foi registrada no limitador mesmo com o grafo falhando.
+        // (Que a contagem de verdade persiste está no LimitesDiariosIntegrationTest.)
+        verify(limiteDiarioService).registrarPergunta(anyString());
+    }
+
+    // ---- Erros do provedor do modelo (Maritaca) ------------------------------------------
+    // As exceções e as cadeias são as reais da LangChain4j 1.18.1 e do LangGraph4j
+    // 1.9.0-beta2, registradas no ErrosDoProvedorIntegrationTest contra o grafo de verdade:
+    // 429 -> RateLimitException -> HttpException; 402 (sem exceção própria) ->
+    // InvalidRequestException -> HttpException; tempo limite -> TimeoutException ->
+    // HttpTimeoutException; e o grafo embrulha em CompletionException -> GraphRunnerException ->
+    // ExecutionException -> o erro do provedor.
+
+    private static final String MENSAGEM_LIMITE_DE_USO =
+            "O assistente atingiu o limite de uso no momento. Tente novamente mais tarde.";
+    private static final String MENSAGEM_TEMPO_LIMITE = "O assistente demorou demais para responder. Tente novamente.";
+
+    private static CompletionException embrulhadoPeloGrafo(Throwable erroDoProvedor) {
+        RunnableConfig config = RunnableConfig.builder().threadId("t1").build();
+        return new CompletionException(new GraphRunnerException(config, new ExecutionException(erroDoProvedor)));
+    }
+
+    private static Stream<Arguments> errosDeLimiteOuSaldoDoProvedor() {
+        RuntimeException limite = new RateLimitException(new HttpException(429, "limite do provedor"));
+        RuntimeException saldo = new InvalidRequestException(new HttpException(402, "saldo do provedor"));
+        return Stream.of(
+                Arguments.of("429 direto", limite),
+                Arguments.of("429 embrulhado em CompletionException", embrulhadoPeloGrafo(limite)),
+                Arguments.of("402 direto", saldo),
+                Arguments.of("402 embrulhado em CompletionException", embrulhadoPeloGrafo(saldo)));
+    }
+
+    private static Stream<Arguments> errosDeTempoLimiteDoProvedor() {
+        RuntimeException tempoDoCliente = new TimeoutException(new HttpTimeoutException("request timed out"));
+        RuntimeException tempoDoProvedor = new TimeoutException(new HttpException(408, "tempo do provedor"));
+        return Stream.of(
+                Arguments.of("tempo limite do cliente direto", tempoDoCliente),
+                Arguments.of("tempo limite do cliente embrulhado em CompletionException", embrulhadoPeloGrafo(tempoDoCliente)),
+                Arguments.of("408 do provedor direto", tempoDoProvedor),
+                Arguments.of("408 do provedor embrulhado em CompletionException", embrulhadoPeloGrafo(tempoDoProvedor)));
+    }
+
+    private static Stream<Arguments> outrosErrosDoProvedor() {
+        return Stream.of(
+                        erroDoProvedorComDetalhe("401 chave inválida", new AuthenticationException(new HttpException(401, "detalhe-401"))),
+                        erroDoProvedorComDetalhe("500 do provedor", new InternalServerException(new HttpException(500, "detalhe-500"))),
+                        erroDoProvedorComDetalhe("400 do provedor", new InvalidRequestException(new HttpException(400, "detalhe-400"))),
+                        erroDoProvedorComDetalhe("falha qualquer da biblioteca", new LangChain4jException("detalhe-biblioteca")))
+                .flatMap(caso -> caso);
+    }
+
+    /** Cada erro entra duas vezes: direto e embrulhado pelo grafo. O detalhe é o que não pode vazar no corpo. */
+    private static Stream<Arguments> erroDoProvedorComDetalhe(String nome, RuntimeException erro) {
+        String detalhe = erro.getMessage();
+        return Stream.of(
+                Arguments.of(nome + " direto", erro, detalhe),
+                Arguments.of(nome + " embrulhado em CompletionException", embrulhadoPeloGrafo(erro), detalhe));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("errosDeLimiteOuSaldoDoProvedor")
+    void limiteOuSaldoDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.erro").value(MENSAGEM_LIMITE_DE_USO));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("errosDeTempoLimiteDoProvedor")
+    void tempoLimiteDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.erro").value(MENSAGEM_TEMPO_LIMITE));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("outrosErrosDoProvedor")
+    void outrosErrosDoProvedorContinuamRetornando500SemVazarODetalhe(String caso, RuntimeException erro, String detalhe)
+            throws Exception {
+        when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
+
+        String corpo = mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.erro").value("Erro interno ao processar a conversa."))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(corpo).as("o detalhe do provedor não pode vazar no corpo").doesNotContain(detalhe);
+        assertThat(logAppender.list)
+                .as("o detalhe do provedor vai para o log, em nível de erro")
+                .anyMatch(evento -> evento.getLevel() == Level.ERROR
+                        && evento.getThrowableProxy() != null
+                        && detalhe.equals(evento.getThrowableProxy().getMessage()));
     }
 }

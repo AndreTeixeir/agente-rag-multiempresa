@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Propriedades de ingestão — {@code app.ingestao.*} em {@code application.yml}.
- * Nunca hardcoded no código, conforme CLAUDE.md.
+ * Nunca hardcoded no código, por regra do projeto.
  */
 @ConfigurationProperties(prefix = "app.ingestao")
 public record IngestionProperties(

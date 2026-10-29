@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Só leitura do repositório: o workflow roda testes, não publica nada.
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Sem Postgres local e sem chaves reais: os testes sobem o próprio Postgres com
+      # Testcontainers (o Docker já vem no runner) e usam chaves falsas. Os testes
+      # marcados @Tag("llm") ficam de fora, como em qualquer ./mvnw test.
+      - name: ./mvnw test
+        run: ./mvnw -B test

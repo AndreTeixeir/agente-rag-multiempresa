@@ -119,6 +119,9 @@
   .msg.assistente .autor { color: var(--ferrugem); }
   .msg.assistente .texto { background: var(--papel); }
 
+  .msg.aviso .autor { color: var(--pardo); }
+  .msg.aviso .texto { background: #FAF9F6; border-style: dashed; color: var(--pardo-escuro); }
+
   .fontes {
     margin-top: 0.55rem; font-family: var(--mono); font-size: 0.75rem;
     color: var(--pardo-escuro); background: #FAF9F6;
@@ -205,7 +208,8 @@
       <div id="historico"></div>
 
       <form id="form-mensagem">
-        <input id="mensagem" type="text" placeholder="Digite sua pergunta..." autocomplete="off">
+        <!-- maxlength acompanha app.demo.limites.tamanho-maximo-mensagem (application.yml); o backend valida de qualquer jeito. -->
+        <input id="mensagem" type="text" maxlength="1000" placeholder="Digite sua pergunta..." autocomplete="off">
         <button id="mic" type="button" aria-label="Falar pergunta" title="Falar pergunta">🎤</button>
         <button type="submit">Enviar</button>
       </form>
@@ -251,6 +255,18 @@
     var div = document.createElement('div');
     div.className = 'msg usuario';
     div.innerHTML = '<div class="autor">Você</div><div class="texto"></div>';
+    div.querySelector('.texto').textContent = texto;
+    historico.appendChild(div);
+    historico.scrollTop = historico.scrollHeight;
+  }
+
+  // Aviso do servidor dentro da conversa (limite diário, assistente indisponível):
+  // fica no histórico, não derruba a conversa, e a pessoa pode tentar de novo.
+  function appendAvisoDoSistema(texto) {
+    var div = document.createElement('div');
+    div.className = 'msg aviso';
+    div.setAttribute('role', 'status');
+    div.innerHTML = '<div class="autor">Aviso</div><div class="texto"></div>';
     div.querySelector('.texto').textContent = texto;
     historico.appendChild(div);
     historico.scrollTop = historico.scrollHeight;
@@ -382,7 +398,9 @@
       .then(function (r) {
         return r.json().then(function (dados) {
           if (!r.ok) {
-            throw new Error(dados.erro || 'Erro desconhecido ao consultar o agente.');
+            var erro = new Error(dados.erro || 'Erro desconhecido ao consultar o agente.');
+            erro.status = r.status;
+            throw erro;
           }
           return dados;
         });
@@ -395,7 +413,13 @@
         }
       })
       .catch(function (erro) {
-        mostrarErro(erro.message);
+        // 429 (limite diário) e 503 (assistente indisponível) trazem uma mensagem
+        // escrita para quem usa: aparece na conversa. Os demais erros seguem no banner.
+        if (erro.status === 429 || erro.status === 503) {
+          appendAvisoDoSistema(erro.message);
+        } else {
+          mostrarErro(erro.message);
+        }
       })
       .finally(function () {
         habilitarEntrada(true);

@@ -110,7 +110,7 @@ exatas anotadas para uso na Etapa 1.
   `langgraph4j-postgres-saver`, pgvector, `onnxruntime`)
 - `docker-compose.yml` com Postgres + extensão `vector`
 - `.gitignore` (incluir `.env`, `target/`, modelo ONNX se for grande)
-- `CLAUDE.md` e `PLANO_EXECUCAO.md` na raiz
+- `PLANO_EXECUCAO.md` na raiz
 - Estrutura de pastas
 - `GET /health` respondendo
 
