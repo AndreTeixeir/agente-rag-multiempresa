@@ -98,14 +98,41 @@ class OrigemFilterTest {
 
     @Test
     void semSecureOEsquemaEsperadoEHttpEHttpsNaoPassa() throws Exception {
-        assertThat(aplicar(semHttps, requisicao("POST", "localhost:8080", "http://localhost:8080")).passou()).isTrue();
-        assertThat(aplicar(semHttps, requisicao("POST", "localhost:8080", "https://localhost:8080")).passou()).isFalse();
+        assertThat(aplicar(semHttps, requisicao("POST", "sabia.exemplo.test", "http://sabia.exemplo.test")).passou()).isTrue();
+        assertThat(aplicar(semHttps, requisicao("POST", "sabia.exemplo.test", "https://sabia.exemplo.test")).passou()).isFalse();
     }
 
     @Test
     void aPortaFazParteDaOrigem() throws Exception {
+        assertThat(aplicar(semHttps, requisicao("POST", "sabia.exemplo.test:8080", "http://sabia.exemplo.test:9090")).passou()).isFalse();
+        assertThat(aplicar(semHttps, requisicao("POST", "sabia.exemplo.test:8080", "http://sabia.exemplo.test")).passou()).isFalse();
         assertThat(aplicar(semHttps, requisicao("POST", "localhost:8080", "http://localhost:9090")).passou()).isFalse();
-        assertThat(aplicar(semHttps, requisicao("POST", "localhost:8080", "http://localhost")).passou()).isFalse();
+        assertThat(aplicar(seguro, requisicao("POST", "localhost:8080", "http://localhost")).passou()).isFalse();
+    }
+
+    // ---- O loopback: é como se roda no notebook, por http://localhost, com Secure ligado ---------
+
+    @ParameterizedTest
+    @ValueSource(strings = {"localhost:8080", "localhost", "127.0.0.1:8080", "[::1]:8080", "LOCALHOST:8080"})
+    void noLoopbackHttpEHttpsDoProprioHostPassamMesmoComSecureLigado(String host) throws Exception {
+        assertThat(aplicar(seguro, requisicao("POST", host, "http://" + host)).passou()).as("http://" + host).isTrue();
+        assertThat(aplicar(seguro, requisicao("POST", host, "https://" + host)).passou()).as("https://" + host).isTrue();
+    }
+
+    @Test
+    void noLoopbackOutroSiteOuOutraPortaAindaEhBarrado() throws Exception {
+        assertThat(aplicar(seguro, requisicao("POST", "localhost:8080", "http://site-malicioso.example")).passou()).isFalse();
+        assertThat(aplicar(seguro, requisicao("POST", "localhost:8080", "http://127.0.0.1:8080")).passou())
+                .as("outro nome do mesmo loopback é outra origem")
+                .isFalse();
+        assertThat(aplicar(seguro, requisicao("POST", "localhost:8080", "null")).passou()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"localhost.site-malicioso.example", "localhostx", "xlocalhost", "127.0.0.10", "meu-localhost.dev.br"})
+    void hostQueSoParecELoopbackNaoGanhaAExcecao(String host) throws Exception {
+        assertThat(aplicar(seguro, requisicao("POST", host, "http://" + host)).passou()).isFalse();
+        assertThat(aplicar(seguro, requisicao("POST", host, "https://" + host)).passou()).isTrue();
     }
 
     @Test

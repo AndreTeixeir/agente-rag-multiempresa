@@ -407,10 +407,17 @@ class AuthIntegrationTest {
     }
 
     @Test
-    void loginComOriginDoProprioSitePassaEDeHttpNao() throws Exception {
-        // O Host da requisição é 127.0.0.1:<porta>; com Secure (o padrão) o esquema esperado é https.
+    void loginComOriginDoProprioLoopbackPassaPorHttpOuHttpsMasOutraOrigemNao() throws Exception {
+        // O Host da requisição é 127.0.0.1:<porta>. Com Secure (o padrão) o esquema esperado seria https,
+        // mas o loopback é a exceção: é como se roda no notebook, por http://localhost.
         assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "https://127.0.0.1:" + porta).statusCode()).isEqualTo(200);
-        assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "http://127.0.0.1:" + porta).statusCode()).isEqualTo(403);
+        assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "http://127.0.0.1:" + porta).statusCode()).isEqualTo(200);
+        assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "http://127.0.0.1:" + (porta + 1)).statusCode())
+                .as("outra porta é outra origem")
+                .isEqualTo(403);
+        assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "http://localhost:" + porta).statusCode())
+                .as("outro nome do loopback é outra origem")
+                .isEqualTo(403);
         assertThat(login("admin.bimbam", SENHA_PUBLICA, ip, "null").statusCode()).isEqualTo(403);
     }
 

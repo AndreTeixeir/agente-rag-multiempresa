@@ -16,7 +16,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * navegadores aceitam cookie {@code Secure} em {@code http://localhost}, mas há quem não aceite
  * (Safari, ferramentas de linha de comando): quem roda sem HTTPS desliga com
  * {@code APP_AUTH_COOKIE_SEGURO=false}. A mesma propriedade decide o esquema esperado pela
- * conferência de {@code Origin} (ver {@link OrigemFilter}).
+ * conferência de {@code Origin} (ver {@link OrigemFilter}, que aceita {@code http} e {@code https}
+ * no próprio loopback).
  */
 @ConfigurationProperties(prefix = "app.auth")
 public record AuthProperties(

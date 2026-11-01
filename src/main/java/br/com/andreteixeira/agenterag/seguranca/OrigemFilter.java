@@ -25,6 +25,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *     <li>O esquema esperado vem de {@code app.auth.cookie-seguro} ({@code https} se
  *     {@code true}), e o host, do cabeçalho {@code Host} bruto. Não depende de a aplicação
  *     descobrir o esquema por {@code X-Forwarded-Proto}.</li>
+ *     <li>Exceção: quando o host é o próprio loopback ({@code localhost}, {@code 127.0.0.1},
+ *     {@code [::1]}), {@code http} e {@code https} valem — é como se roda no notebook, por
+ *     {@code http://localhost}, com o padrão de {@code Secure} ligado (os navegadores aceitam o cookie
+ *     {@code Secure} no localhost). Em produção o host nunca é loopback, e o esquema continua estrito.</li>
  *     <li>Sem {@code Origin} a requisição passa: todo navegador manda {@code Origin} em requisição
  *     que muda estado, então a ausência significa um cliente que não é navegador (curl, teste) —
  *     que não tem cookie de navegador a explorar.</li>
@@ -50,16 +54,37 @@ final class OrigemFilter extends OncePerRequestFilter {
         String origem = request.getHeader("Origin");
         if (origem != null && METODOS_QUE_MUDAM_ESTADO.contains(request.getMethod())) {
             String host = request.getHeader("Host");
-            String esperada = host == null ? null : esquema + "://" + host;
-            if (esperada == null || !esperada.equalsIgnoreCase(origem)) {
+            if (host == null || !origemConfere(origem, host)) {
                 // O Origin é dado do cliente: sem quebra de linha nem tamanho absurdo no log.
                 log.warn("Requisição recusada: Origin '{}' diferente do esperado '{}' ({} {})",
-                        limpar(origem), esperada == null ? null : limpar(esperada), request.getMethod(), request.getRequestURI());
+                        limpar(origem), host == null ? null : limpar(esquema + "://" + host), request.getMethod(), request.getRequestURI());
                 RespostasDeAcesso.escrever(response, HttpServletResponse.SC_FORBIDDEN, MENSAGEM);
                 return;
             }
         }
         chain.doFilter(request, response);
+    }
+
+    private boolean origemConfere(String origem, String host) {
+        if ((esquema + "://" + host).equalsIgnoreCase(origem)) {
+            return true;
+        }
+        return ehLoopback(host)
+                && (("http://" + host).equalsIgnoreCase(origem) || ("https://" + host).equalsIgnoreCase(origem));
+    }
+
+    /** {@code localhost}, {@code 127.0.0.1} ou {@code [::1]}, com ou sem porta. Não casa {@code localhost.outro.site}. */
+    static boolean ehLoopback(String host) {
+        String semPorta;
+        if (host.startsWith("[")) {
+            int fim = host.indexOf(']');
+            semPorta = fim < 0 ? host : host.substring(0, fim + 1);
+        } else {
+            int doisPontos = host.indexOf(':');
+            semPorta = doisPontos < 0 ? host : host.substring(0, doisPontos);
+        }
+        String nome = semPorta.toLowerCase(java.util.Locale.ROOT);
+        return nome.equals("localhost") || nome.equals("127.0.0.1") || nome.equals("[::1]");
     }
 
     private static String limpar(String valor) {
