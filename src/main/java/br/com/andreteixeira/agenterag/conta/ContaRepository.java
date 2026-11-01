@@ -77,6 +77,20 @@ public class ContaRepository {
                 .single();
     }
 
+    /** O superadmin real, se já foi criado por algum boot; no máximo um (índice parcial único). */
+    public Optional<Conta> buscarSuperadminReal() {
+        return jdbc.sql(SELECIONAR + " WHERE c.superadmin_real").query(ContaRepository::mapear).optional();
+    }
+
+    /** Troca o usuário e o hash do superadmin real. Usuário que já é de outra conta lança {@code DuplicateKeyException}. */
+    public void atualizarSuperadminReal(long id, String usuario, String senhaHash) {
+        jdbc.sql("UPDATE conta SET usuario = :usuario, senha_hash = :senhaHash WHERE id = :id AND superadmin_real")
+                .param("id", id)
+                .param("usuario", usuario)
+                .param("senhaHash", senhaHash)
+                .update();
+    }
+
     /** Devolve se havia uma conta com esse id. */
     public boolean excluir(long id) {
         return jdbc.sql("DELETE FROM conta WHERE id = :id").param("id", id).update() > 0;

@@ -50,6 +50,11 @@ app:
     # rodar por http:// fora do localhost; também define o esquema esperado no Origin.
     cookie-seguro: ${APP_AUTH_COOKIE_SEGURO:true}
     duracao-da-sessao: 8h
+  superadmin:
+    # O superadmin real: criado (ou atualizado) no boot a partir destas duas variáveis, que o
+    # dono define só no servidor. Sem as duas, ele não existe. Nunca vão para o log.
+    usuario: ${APP_SUPERADMIN_USUARIO:}
+    senha: ${APP_SUPERADMIN_SENHA:}
   demo:
     # Proteção do chat público (/api/chat). As perguntas por dia são contadas por pergunta
     # aceita, no Postgres (tabela limite_diario, V4), então sobrevivem a reinício e
