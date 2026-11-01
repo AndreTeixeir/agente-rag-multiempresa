@@ -267,6 +267,43 @@ class LimitesDiariosIntegrationTest {
                         "2026-10-21|ip:bbb|1");
     }
 
+    @Test
+    void limpezaApagaTodasAsChavesComHashDeIpDeDiasAnterioresEMantemAsDemais() {
+        String hash = "b".repeat(64);
+        // Os três tipos de chave com hash de IP, de ontem e de hoje, mais as sem IP.
+        semear(HOJE.minusDays(1), "ip:" + hash, 3);
+        semear(HOJE.minusDays(1), "login-ip:" + hash + ":09", 2);
+        semear(HOJE.minusDays(1), "cadastro-ip:" + hash, 4);
+        semear(HOJE, "ip:" + hash, 1);
+        semear(HOJE, "login-ip:" + hash + ":12", 1);
+        semear(HOJE, "cadastro-ip:" + hash, 1);
+        semear(HOJE.minusDays(1), "cadastro-total", 7);
+        semear(HOJE.minusDays(1), "reset-diario", 1);
+
+        servico.limparAntigosAgendado();
+
+        assertThat(linhasDoBanco())
+                .as("some o hash de IP de ontem, de qualquer tipo; ficam o de hoje e as chaves sem IP (até 7 dias)")
+                .containsExactly(
+                        "2026-10-20|cadastro-total|7",
+                        "2026-10-20|reset-diario|1",
+                        "2026-10-21|cadastro-ip:" + hash + "|1",
+                        "2026-10-21|ip:" + hash + "|1",
+                        "2026-10-21|login-ip:" + hash + ":12|1");
+    }
+
+    @Test
+    void asChavesNovasCabemNosOitentaCaracteresDaColuna() {
+        String ip = "203.0.113.200";
+        servico.reservarTentativaDeLogin(ip);
+        servico.registrarCadastro(ip);
+
+        assertThat(chavesDoBanco())
+                .filteredOn(chave -> chave.startsWith("login-ip:") || chave.startsWith("cadastro-ip:"))
+                .hasSize(2)
+                .allSatisfy(chave -> assertThat(chave).hasSizeLessThanOrEqualTo(80));
+    }
+
     // ---- IP do cliente, num Tomcat real --------------------------------------------------
 
     @Test

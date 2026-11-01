@@ -2,6 +2,7 @@ package br.com.andreteixeira.agenterag.conta;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -75,6 +76,21 @@ public class ContaRepository {
                 .param("criadaPor", criadaPor)
                 .query(Long.class)
                 .single();
+    }
+
+    /** Todas as contas menos o superadmin real, que nunca aparece em listagem. */
+    public List<Conta> listarTodasExcetoReal() {
+        return jdbc.sql(SELECIONAR + " WHERE NOT c.superadmin_real ORDER BY c.empresa NULLS FIRST, c.papel, c.usuario")
+                .query(ContaRepository::mapear)
+                .list();
+    }
+
+    /** Os usuários comuns (papel USUARIO) de uma empresa. */
+    public List<Conta> listarUsuariosDaEmpresa(String empresa) {
+        return jdbc.sql(SELECIONAR + " WHERE c.papel = 'USUARIO' AND c.empresa = :empresa ORDER BY c.usuario")
+                .param("empresa", empresa)
+                .query(ContaRepository::mapear)
+                .list();
     }
 
     /** O superadmin real, se já foi criado por algum boot; no máximo um (índice parcial único). */

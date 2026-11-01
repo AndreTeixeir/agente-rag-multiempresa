@@ -42,6 +42,8 @@ public class LimiteDiarioService {
     static final String CHAVE_TOTAL = "total";
     static final String PREFIXO_CHAVE_IP = "ip:";
     static final String PREFIXO_CHAVE_LOGIN = "login-ip:";
+    static final String CHAVE_CADASTRO_TOTAL = "cadastro-total";
+    static final String PREFIXO_CHAVE_CADASTRO_IP = "cadastro-ip:";
     static final int DIAS_DE_RETENCAO_DO_TOTAL = 7;
 
     private static final String IP_DESCONHECIDO = "desconhecido";
@@ -65,25 +67,65 @@ public class LimiteDiarioService {
      */
     public void registrarPergunta(String ip) {
         LocalDate hoje = hoje();
-        String chaveDoIp = PREFIXO_CHAVE_IP + sha256Hex(ip == null || ip.isBlank() ? IP_DESCONHECIDO : ip);
+        int totalDeHoje = consumir(
+                hoje,
+                CHAVE_TOTAL,
+                limites.perguntasPorDia(),
+                PREFIXO_CHAVE_IP + sha256Hex(ipOuDesconhecido(ip)),
+                limites.perguntasPorIpPorDia(),
+                LimiteDiarioExcedidoException.Assunto.PERGUNTAS);
 
-        boolean primeiraDoDia = Boolean.TRUE.equals(transacao.execute(status -> {
-            OptionalInt total = repository.incrementarSeAbaixoDoLimite(hoje, CHAVE_TOTAL, limites.perguntasPorDia());
-            if (total.isEmpty()) {
-                throw new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.TOTAL);
-            }
-            OptionalInt doIp = repository.incrementarSeAbaixoDoLimite(hoje, chaveDoIp, limites.perguntasPorIpPorDia());
-            if (doIp.isEmpty()) {
-                // Lançar de dentro da transação desfaz o incremento do total acima.
-                throw new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.IP);
-            }
-            return total.getAsInt() == 1;
-        }));
-
-        if (primeiraDoDia) {
+        if (totalDeHoje == 1) {
             // Cobre a aplicação ter ficado fora do ar à meia-noite, quando a limpeza agendada não rodou.
             limparAntigos(hoje);
         }
+    }
+
+    /**
+     * Registra um cadastro de conta do {@code ip} nos dois contadores do dia (total e por IP), ou lança
+     * {@link LimiteDiarioExcedidoException} sem registrar nada — a mesma regra das perguntas, com
+     * contadores só dos cadastros. Excluir a conta depois NÃO devolve a vaga. Quem chama de dentro de
+     * uma transação a estende: se o cadastro falhar depois, a vaga volta com o rollback.
+     */
+    public void registrarCadastro(String ip) {
+        consumir(
+                hoje(),
+                CHAVE_CADASTRO_TOTAL,
+                limites.cadastrosPorDia(),
+                PREFIXO_CHAVE_CADASTRO_IP + sha256Hex(ipOuDesconhecido(ip)),
+                limites.cadastrosPorIpPorDia(),
+                LimiteDiarioExcedidoException.Assunto.CADASTROS);
+    }
+
+    /**
+     * Incrementa o contador do total e o do IP na mesma transação, nesta ordem (a ordem fixa evita
+     * deadlock entre requisições simultâneas). Recusar pelo IP lança de dentro da transação, o que
+     * desfaz o incremento do total. Devolve a contagem do total depois de incrementar.
+     */
+    private int consumir(
+            LocalDate hoje,
+            String chaveDoTotal,
+            int limiteDoTotal,
+            String chaveDoIp,
+            int limiteDoIp,
+            LimiteDiarioExcedidoException.Assunto assunto) {
+        Integer totalDeHoje = transacao.execute(status -> {
+            OptionalInt total = repository.incrementarSeAbaixoDoLimite(hoje, chaveDoTotal, limiteDoTotal);
+            if (total.isEmpty()) {
+                throw new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.TOTAL, assunto);
+            }
+            OptionalInt doIp = repository.incrementarSeAbaixoDoLimite(hoje, chaveDoIp, limiteDoIp);
+            if (doIp.isEmpty()) {
+                // Lançar de dentro da transação desfaz o incremento do total acima.
+                throw new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.IP, assunto);
+            }
+            return total.getAsInt();
+        });
+        return totalDeHoje == null ? 0 : totalDeHoje;
+    }
+
+    private static String ipOuDesconhecido(String ip) {
+        return ip == null || ip.isBlank() ? IP_DESCONHECIDO : ip;
     }
 
     /**
@@ -99,7 +141,7 @@ public class LimiteDiarioService {
     public TentativaDeLogin reservarTentativaDeLogin(String ip) {
         LocalDateTime agora = LocalDateTime.now(relogio.withZone(limites.fuso()));
         String chave = PREFIXO_CHAVE_LOGIN
-                + sha256Hex(ip == null || ip.isBlank() ? IP_DESCONHECIDO : ip)
+                + sha256Hex(ipOuDesconhecido(ip))
                 + ":"
                 + String.format("%02d", agora.getHour());
         LocalDate dia = agora.toLocalDate();

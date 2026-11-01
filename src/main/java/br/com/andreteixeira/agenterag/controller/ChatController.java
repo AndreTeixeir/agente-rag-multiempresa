@@ -1,10 +1,10 @@
 package br.com.andreteixeira.agenterag.controller;
 
+import br.com.andreteixeira.agenterag.conta.ContaAutenticada;
 import br.com.andreteixeira.agenterag.conta.Papel;
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
 import br.com.andreteixeira.agenterag.limite.LimitesProperties;
-import br.com.andreteixeira.agenterag.seguranca.ContaAutenticada;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

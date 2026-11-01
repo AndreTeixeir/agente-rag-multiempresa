@@ -2,14 +2,18 @@ package br.com.andreteixeira.agenterag.seguranca;
 
 import br.com.andreteixeira.agenterag.conta.AutenticacaoService;
 import br.com.andreteixeira.agenterag.conta.Conta;
+import br.com.andreteixeira.agenterag.conta.ContaAutenticada;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -43,8 +47,10 @@ final class SessaoCookieFilter extends OncePerRequestFilter {
             if (id.isPresent()) {
                 Optional<Conta> conta = autenticacao.contaDaSessao(id.getAsLong());
                 if (conta.isPresent()) {
+                    ContaAutenticada autenticada = ContaAutenticada.de(conta.get());
                     SecurityContext contexto = SecurityContextHolder.createEmptyContext();
-                    contexto.setAuthentication(ContaAutenticada.de(conta.get()).comoAutenticacao());
+                    contexto.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                            autenticada, null, List.of(new SimpleGrantedAuthority("ROLE_" + autenticada.papel().name()))));
                     SecurityContextHolder.setContext(contexto);
                 }
             }

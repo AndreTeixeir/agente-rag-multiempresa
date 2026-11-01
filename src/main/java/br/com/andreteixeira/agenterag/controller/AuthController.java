@@ -2,10 +2,10 @@ package br.com.andreteixeira.agenterag.controller;
 
 import br.com.andreteixeira.agenterag.conta.AutenticacaoService;
 import br.com.andreteixeira.agenterag.conta.Conta;
+import br.com.andreteixeira.agenterag.conta.ContaAutenticada;
 import br.com.andreteixeira.agenterag.conta.CredenciaisInvalidasException;
 import br.com.andreteixeira.agenterag.conta.Papel;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
-import br.com.andreteixeira.agenterag.seguranca.ContaAutenticada;
 import br.com.andreteixeira.agenterag.seguranca.SessaoCookie;
 import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import jakarta.servlet.http.HttpServletRequest;

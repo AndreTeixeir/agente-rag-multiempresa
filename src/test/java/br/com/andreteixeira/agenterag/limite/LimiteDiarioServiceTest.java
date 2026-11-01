@@ -46,10 +46,30 @@ class LimiteDiarioServiceTest {
     }
 
     private LimiteDiarioService servico(int perguntasPorDia, int perguntasPorIpPorDia, int tentativasDeLoginPorHora) {
+        return servico(perguntasPorDia, perguntasPorIpPorDia, tentativasDeLoginPorHora, 50, 5);
+    }
+
+    private LimiteDiarioService servicoDeCadastros(int cadastrosPorDia, int cadastrosPorIpPorDia) {
+        return servico(100, 10, 10, cadastrosPorDia, cadastrosPorIpPorDia);
+    }
+
+    private LimiteDiarioService servico(
+            int perguntasPorDia,
+            int perguntasPorIpPorDia,
+            int tentativasDeLoginPorHora,
+            int cadastrosPorDia,
+            int cadastrosPorIpPorDia) {
         return new LimiteDiarioService(
                 repositorio,
                 transacao,
-                new LimitesProperties(perguntasPorDia, perguntasPorIpPorDia, SAO_PAULO, 1000, tentativasDeLoginPorHora),
+                new LimitesProperties(
+                        perguntasPorDia,
+                        perguntasPorIpPorDia,
+                        SAO_PAULO,
+                        1000,
+                        tentativasDeLoginPorHora,
+                        cadastrosPorDia,
+                        cadastrosPorIpPorDia),
                 relogio);
     }
 
@@ -190,11 +210,105 @@ class LimiteDiarioServiceTest {
 
     @Test
     void limitesNegativosOuFusoAusenteImpedemOStartup() {
-        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, null, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 0, 10)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 1000, -1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO, 1000, 10, 50, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO, 1000, 10, 50, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, null, 1000, 10, 50, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 0, 10, 50, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 1000, -1, 50, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 1000, 10, -1, 5)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 1000, 10, 50, -1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---- Teto de cadastros de contas, por dia e por IP --------------------------------------
+
+    private static final String CHAVE_DE_CADASTRO_DO_IP_5 = "cadastro-ip:" + SHA256_DE_203_0_113_5;
+
+    private static void assertRecusadoComo(
+            Runnable acao, LimiteDiarioExcedidoException.Tipo tipo, LimiteDiarioExcedidoException.Assunto assunto) {
+        assertThatThrownBy(acao::run).isInstanceOfSatisfying(LimiteDiarioExcedidoException.class, e -> {
+            assertThat(e.tipo()).isEqualTo(tipo);
+            assertThat(e.assunto()).isEqualTo(assunto);
+        });
+    }
+
+    @Test
+    void aSextaTentativaDeCadastroDoMesmoIpEhRecusadaPeloIp() {
+        LimiteDiarioService servico = servicoDeCadastros(50, 5);
+        for (int i = 0; i < 5; i++) {
+            servico.registrarCadastro("203.0.113.5");
+        }
+
+        assertRecusadoComo(
+                () -> servico.registrarCadastro("203.0.113.5"),
+                LimiteDiarioExcedidoException.Tipo.IP,
+                LimiteDiarioExcedidoException.Assunto.CADASTROS);
+        assertThat(repositorio.contagem(DIA_21, "cadastro-total")).as("a recusada pelo IP desfez o total").isEqualTo(5);
+        assertThat(repositorio.contagem(DIA_21, CHAVE_DE_CADASTRO_DO_IP_5)).isEqualTo(5);
+    }
+
+    @Test
+    void oTotalDeCadastrosDoDiaTambemTemTeto() {
+        LimiteDiarioService servico = servicoDeCadastros(3, 5);
+        servico.registrarCadastro("10.0.0.1");
+        servico.registrarCadastro("10.0.0.2");
+        servico.registrarCadastro("10.0.0.3");
+
+        assertRecusadoComo(
+                () -> servico.registrarCadastro("10.0.0.4"),
+                LimiteDiarioExcedidoException.Tipo.TOTAL,
+                LimiteDiarioExcedidoException.Assunto.CADASTROS);
+        assertThat(repositorio.chavesDoDia(DIA_21))
+                .filteredOn(chave -> chave.startsWith("cadastro-ip:"))
+                .as("o 4º IP, recusado pelo total, não ganhou contador")
+                .hasSize(3);
+    }
+
+    @Test
+    void oContadorDeCadastrosEOutroQueOdePerguntas() {
+        LimiteDiarioService servico = servico(100, 10, 10, 50, 1);
+        servico.registrarPergunta("203.0.113.5");
+
+        assertThatCode(() -> servico.registrarCadastro("203.0.113.5")).doesNotThrowAnyException();
+        assertRecusadoComo(
+                () -> servico.registrarCadastro("203.0.113.5"),
+                LimiteDiarioExcedidoException.Tipo.IP,
+                LimiteDiarioExcedidoException.Assunto.CADASTROS);
+        assertThatCode(() -> servico.registrarPergunta("203.0.113.5")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void cadastroNaoDisparaALimpezaDosContadoresDePerguntas() {
+        servicoDeCadastros(50, 5).registrarCadastro("203.0.113.5");
+
+        assertThat(repositorio.limpezasDeIp).isEmpty();
+    }
+
+    @Test
+    void cadastroDeUmDiaNovoTemContadorNovo() {
+        LimiteDiarioService servico = servicoDeCadastros(50, 1);
+        servico.registrarCadastro("203.0.113.5");
+        assertThatThrownBy(() -> servico.registrarCadastro("203.0.113.5")).isInstanceOf(LimiteDiarioExcedidoException.class);
+
+        relogio.definir(MEIO_DIA_DE_21_DE_OUTUBRO.plusSeconds(24 * 60 * 60));
+
+        assertThatCode(() -> servico.registrarCadastro("203.0.113.5")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void limiteDeCadastroZeroBloqueiaTodosOsCadastros() {
+        assertThatThrownBy(() -> servicoDeCadastros(0, 5).registrarCadastro("203.0.113.5"))
+                .isInstanceOf(LimiteDiarioExcedidoException.class);
+        assertThatThrownBy(() -> servicoDeCadastros(50, 0).registrarCadastro("203.0.113.5"))
+                .isInstanceOf(LimiteDiarioExcedidoException.class);
+    }
+
+    @Test
+    void oIpDoCadastroNaoVaiEmTextoParaOBanco() {
+        servicoDeCadastros(50, 5).registrarCadastro("203.0.113.5");
+
+        assertThat(repositorio.chavesDoDia(DIA_21))
+                .containsExactlyInAnyOrder("cadastro-total", CHAVE_DE_CADASTRO_DO_IP_5)
+                .allSatisfy(chave -> assertThat(chave).hasSizeLessThanOrEqualTo(80).doesNotContain("203.0.113.5"));
     }
 
     // ---- Tentativas de login erradas, por IP e por hora -----------------------------------

@@ -1,6 +1,8 @@
 package br.com.andreteixeira.agenterag.controller;
 
 import br.com.andreteixeira.agenterag.conta.CredenciaisInvalidasException;
+import br.com.andreteixeira.agenterag.conta.OperacaoNaoPermitidaException;
+import br.com.andreteixeira.agenterag.conta.RecursoNaoEncontradoException;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
 import dev.langchain4j.exception.HttpException;
@@ -23,6 +25,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -54,6 +57,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *     <li>{@link CredenciaisInvalidasException} — usuário ou senha que não conferem —
  *     401, com a mesma mensagem para os dois casos.</li>
  *     <li>{@link HttpMessageNotReadableException} — corpo que não é o JSON esperado — 400.</li>
+ *     <li>{@link RecursoNaoEncontradoException} (404) e {@link OperacaoNaoPermitidaException} (403) —
+ *     as recusas do serviço de contas. Existem no lugar do {@code AccessDeniedException} do Spring
+ *     Security, que o {@code @ExceptionHandler(Exception.class)} abaixo engoliria como 500.</li>
  *     <li>{@link LangChain4jException} — falha na chamada ao provedor do modelo
  *     de chat (confirmado no fonte da LangChain4j 1.18.1: o cliente HTTP
  *     traduz o status em exceção). Limite de requisições (429,
@@ -90,6 +96,10 @@ public class GlobalExceptionHandler {
             "Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília).";
     private static final String LIMITE_DE_LOGIN =
             "Muitas tentativas de login erradas. Tente novamente na próxima hora.";
+    private static final String LIMITE_TOTAL_DE_CADASTROS =
+            "A demo atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília).";
+    private static final String LIMITE_DE_CADASTROS_DO_IP =
+            "Você atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília).";
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -124,14 +134,33 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LimiteDiarioExcedidoException.class)
     public ResponseEntity<Map<String, String>> handleLimiteDiarioExcedido(LimiteDiarioExcedidoException ex) {
-        String mensagem;
-        if (ex.assunto() == LimiteDiarioExcedidoException.Assunto.LOGIN) {
-            mensagem = LIMITE_DE_LOGIN;
-        } else {
-            mensagem = ex.tipo() == LimiteDiarioExcedidoException.Tipo.TOTAL ? LIMITE_TOTAL_DA_DEMO : LIMITE_DO_IP;
-        }
+        boolean doTotal = ex.tipo() == LimiteDiarioExcedidoException.Tipo.TOTAL;
+        String mensagem =
+                switch (ex.assunto()) {
+                    case LOGIN -> LIMITE_DE_LOGIN;
+                    case CADASTROS -> doTotal ? LIMITE_TOTAL_DE_CADASTROS : LIMITE_DE_CADASTROS_DO_IP;
+                    case PERGUNTAS -> doTotal ? LIMITE_TOTAL_DA_DEMO : LIMITE_DO_IP;
+                };
         log.info("Requisição recusada pelo limite: {} / {}", ex.assunto(), ex.tipo());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("erro", mensagem));
+    }
+
+    /** A conta não existe, ou quem pediu não pode nem saber que existe — a mesma resposta nos dois casos. */
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleRecursoNaoEncontrado(RecursoNaoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("erro", ex.getMessage()));
+    }
+
+    /** O papel não permite. Lançada pelo serviço de contas, não pelo Spring Security (ver o javadoc da exceção). */
+    @ExceptionHandler(OperacaoNaoPermitidaException.class)
+    public ResponseEntity<Map<String, String>> handleOperacaoNaoPermitida(OperacaoNaoPermitidaException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("erro", ex.getMessage()));
+    }
+
+    /** Um id de conta que não é número, por exemplo. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTipoDeArgumento(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(Map.of("erro", "Identificador inválido."));
     }
 
     @ExceptionHandler(CredenciaisInvalidasException.class)

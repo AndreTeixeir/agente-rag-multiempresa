@@ -16,6 +16,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p>
  * {@code tentativasDeLoginPorIpPorHora} é o máximo de logins ERRADOS por IP em cada hora
  * (a hora do relógio, no mesmo fuso); a partir dele o login responde 429 até a hora virar.
+ * <p>
+ * {@code cadastrosPorDia} e {@code cadastrosPorIpPorDia} são o teto de contas criadas pela API de
+ * administração, no total e por IP, em cada dia — excluir uma conta não devolve a vaga. Zero bloqueia
+ * todos os cadastros.
  */
 @ConfigurationProperties(prefix = "app.demo.limites")
 public record LimitesProperties(
@@ -23,7 +27,9 @@ public record LimitesProperties(
         int perguntasPorIpPorDia,
         ZoneId fuso,
         int tamanhoMaximoMensagem,
-        int tentativasDeLoginPorIpPorHora) {
+        int tentativasDeLoginPorIpPorHora,
+        int cadastrosPorDia,
+        int cadastrosPorIpPorDia) {
 
     public LimitesProperties {
         if (perguntasPorDia < 0) {
@@ -43,6 +49,13 @@ public record LimitesProperties(
         if (tentativasDeLoginPorIpPorHora < 0) {
             throw new IllegalArgumentException(
                     "app.demo.limites.tentativas-de-login-por-ip-por-hora não pode ser negativo: " + tentativasDeLoginPorIpPorHora);
+        }
+        if (cadastrosPorDia < 0) {
+            throw new IllegalArgumentException("app.demo.limites.cadastros-por-dia não pode ser negativo: " + cadastrosPorDia);
+        }
+        if (cadastrosPorIpPorDia < 0) {
+            throw new IllegalArgumentException(
+                    "app.demo.limites.cadastros-por-ip-por-dia não pode ser negativo: " + cadastrosPorIpPorDia);
         }
     }
 }

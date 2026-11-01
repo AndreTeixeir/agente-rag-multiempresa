@@ -1,16 +1,9 @@
-package br.com.andreteixeira.agenterag.seguranca;
-
-import br.com.andreteixeira.agenterag.conta.Conta;
-import br.com.andreteixeira.agenterag.conta.Papel;
-import java.util.List;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+package br.com.andreteixeira.agenterag.conta;
 
 /**
  * A conta da sessão atual — o principal do {@code Authentication}. Carregada do banco a cada
- * requisição pelo {@link SessaoCookieFilter} (o JWT só diz de quem é o id), então papel e
- * empresa são sempre os de agora: excluir a conta ou o reset diário encerram a sessão na hora.
+ * requisição pelo {@code SessaoCookieFilter} (o JWT só diz de quem é o id), então papel e empresa
+ * são sempre os de agora: excluir a conta ou o reset diário encerram a sessão na hora.
  * <p>
  * Não leva o hash da senha.
  */
@@ -27,10 +20,5 @@ public record ContaAutenticada(long id, String usuario, Papel papel, String empr
     /** O nome para a interface: o usuário, exceto o do superadmin real. */
     public String nomeExibido() {
         return superadminReal ? NOME_DO_SUPERADMIN_REAL : usuario;
-    }
-
-    Authentication comoAutenticacao() {
-        return UsernamePasswordAuthenticationToken.authenticated(
-                this, null, List.of(new SimpleGrantedAuthority("ROLE_" + papel.name())));
     }
 }

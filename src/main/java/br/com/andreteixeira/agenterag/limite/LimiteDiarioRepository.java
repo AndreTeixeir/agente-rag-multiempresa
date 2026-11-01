@@ -66,11 +66,13 @@ public class LimiteDiarioRepository {
     }
 
     /**
-     * Apaga as contagens que carregam o hash de um IP — as chaves {@code ip:*} (perguntas por IP) e
-     * {@code login-ip:*} — de dias anteriores a {@code dia}. O hash do IP não fica guardado além do dia.
+     * Apaga as contagens que carregam o hash de um IP — as chaves {@code ip:*} (perguntas por IP),
+     * {@code login-ip:*} e {@code cadastro-ip:*} — de dias anteriores a {@code dia}. O hash do IP não
+     * fica guardado além do dia. As chaves sem IP ({@code total}, {@code cadastro-total},
+     * {@code reset-diario}) saem pela retenção de 7 dias.
      */
     public int apagarContagensDeIpAnterioresA(LocalDate dia) {
-        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave ~ '^(login-)?ip:'")
+        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave ~ '^(login-|cadastro-)?ip:'")
                 .param("dia", dia)
                 .update();
     }
