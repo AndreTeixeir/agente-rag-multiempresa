@@ -15,6 +15,10 @@ spring:
     password: ${DB_PASSWORD:rag}
     driver-class-name: org.postgresql.Driver
   jpa:
+    # Sem open-in-view: não há entidade JPA nem carregamento preguiçoso na aplicação (o acesso ao
+    # banco é por JDBC), então nada depende de manter o EntityManager aberto durante a requisição.
+    # Também evita o aviso que o Spring Boot dá no boot quando esta propriedade fica no padrão.
+    open-in-view: false
     hibernate:
       # Schema é gerenciado pelo Flyway (src/main/resources/db/migration), não
       # pelo Hibernate — não há entidade JPA para a tabela document_chunks

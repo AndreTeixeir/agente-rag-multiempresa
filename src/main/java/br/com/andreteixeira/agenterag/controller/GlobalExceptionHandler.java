@@ -170,15 +170,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LangChain4jException.class)
     public ResponseEntity<Map<String, String>> handleErroDoProvedor(LangChain4jException ex) {
-        if (ex instanceof RateLimitException || statusHttpDoProvedor(ex) == HTTP_PAGAMENTO_NECESSARIO) {
-            log.warn("Provedor do modelo recusou por limite de uso ou saldo: {}", ex.getMessage());
+        // O código HTTP que o provedor devolveu entra em todo log deste ramo: é o que separa uma chave
+        // inválida (401) de um saldo esgotado (402) ou de uma falha dele (5xx) sem abrir o stack trace.
+        int statusDoProvedor = statusHttpDoProvedor(ex);
+        String codigo = statusDoProvedor < 0 ? "sem código HTTP" : "HTTP " + statusDoProvedor;
+        if (ex instanceof RateLimitException || statusDoProvedor == HTTP_PAGAMENTO_NECESSARIO) {
+            log.warn("Provedor do modelo recusou por limite de uso ou saldo ({}): {}", codigo, ex.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("erro", LIMITE_DE_USO_DO_PROVEDOR));
         }
         if (ex instanceof TimeoutException) {
-            log.warn("Provedor do modelo não respondeu dentro do tempo limite: {}", ex.getMessage());
+            log.warn("Provedor do modelo não respondeu dentro do tempo limite ({}): {}", codigo, ex.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("erro", TEMPO_LIMITE_DO_PROVEDOR));
         }
-        log.error("Erro do provedor do modelo", ex);
+        log.error("Erro do provedor do modelo ({})", codigo, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("erro", ERRO_INTERNO_GENERICO));
     }
 

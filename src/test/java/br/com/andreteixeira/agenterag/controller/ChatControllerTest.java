@@ -645,6 +645,104 @@ class ChatControllerTest {
                 Arguments.of(nome + " embrulhado em CompletionException", embrulhadoPeloGrafo(erro), detalhe));
     }
 
+    // ---- O código HTTP do provedor entra no log ------------------------------------------
+
+    private List<String> mensagensDoLog(Level nivel) {
+        return logAppender.list.stream()
+                .filter(evento -> evento.getLevel() == nivel)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
+    }
+
+    private void perguntarEEsperar(int statusHttpDaResposta) throws Exception {
+        mockMvc.perform(postarChat()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().is(statusHttpDaResposta));
+    }
+
+    @Test
+    void erroDoProvedorComCodigoHttpLogaOCodigoNoNivelDeErro() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new InternalServerException(new HttpException(500, "falha-do-provedor")));
+
+        perguntarEEsperar(500);
+
+        assertThat(mensagensDoLog(Level.ERROR)).containsExactly("Erro do provedor do modelo (HTTP 500)");
+    }
+
+    @Test
+    void chaveInvalidaLogaOCodigo401() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new AuthenticationException(new HttpException(401, "chave-invalida")));
+
+        perguntarEEsperar(500);
+
+        assertThat(mensagensDoLog(Level.ERROR)).containsExactly("Erro do provedor do modelo (HTTP 401)");
+    }
+
+    @Test
+    void erroDoProvedorSemCodigoHttpDizQueNaoTem() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new LangChain4jException("falha-da-biblioteca"));
+
+        perguntarEEsperar(500);
+
+        assertThat(mensagensDoLog(Level.ERROR)).containsExactly("Erro do provedor do modelo (sem código HTTP)");
+    }
+
+    @Test
+    void limiteDoProvedorLogaOCodigo429NoAviso() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new RateLimitException(new HttpException(429, "limite")));
+
+        perguntarEEsperar(503);
+
+        assertThat(mensagensDoLog(Level.WARN))
+                .singleElement()
+                .asString()
+                .startsWith("Provedor do modelo recusou por limite de uso ou saldo (HTTP 429)");
+    }
+
+    @Test
+    void saldoEsgotadoLogaOCodigo402NoAviso() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new InvalidRequestException(new HttpException(402, "saldo")));
+
+        perguntarEEsperar(503);
+
+        assertThat(mensagensDoLog(Level.WARN))
+                .singleElement()
+                .asString()
+                .startsWith("Provedor do modelo recusou por limite de uso ou saldo (HTTP 402)");
+    }
+
+    @Test
+    void oCodigoTambemApareceQuandoOGrafoEmbrulhaOErroEmCompletionException() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(embrulhadoPeloGrafo(new InternalServerException(new HttpException(503, "indisponivel"))));
+
+        perguntarEEsperar(500);
+
+        assertThat(mensagensDoLog(Level.ERROR)).containsExactly("Erro do provedor do modelo (HTTP 503)");
+    }
+
+    @Test
+    void tempoLimiteDoProvedorLogaNoAvisoSemCodigoHttp() throws Exception {
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
+                .thenThrow(new TimeoutException(new HttpTimeoutException("request timed out")));
+
+        perguntarEEsperar(503);
+
+        assertThat(mensagensDoLog(Level.WARN))
+                .singleElement()
+                .asString()
+                .startsWith("Provedor do modelo não respondeu dentro do tempo limite (sem código HTTP)");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("errosDeLimiteOuSaldoDoProvedor")
     void limiteOuSaldoDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
