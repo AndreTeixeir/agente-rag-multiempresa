@@ -19,6 +19,11 @@ public class ConversaRepository {
         this.jdbc = jdbc;
     }
 
+    /** O reset diário: apaga todas as conversas, de todas as contas. Devolve quantas. */
+    public int apagarTodas() {
+        return jdbc.sql("DELETE FROM LG4JThread").update();
+    }
+
     /** Apaga as conversas de uma conta (as threads cujo nome começa com o prefixo dela). Devolve quantas. */
     public int apagarDaConta(long contaId) {
         return jdbc.sql("DELETE FROM LG4JThread WHERE thread_name LIKE :prefixo")

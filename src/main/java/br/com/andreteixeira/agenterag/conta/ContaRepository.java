@@ -107,6 +107,22 @@ public class ContaRepository {
                 .update();
     }
 
+    /**
+     * O reset diário: apaga toda conta que não é semeada, não é o superadmin real e não foi criada
+     * por ele. Devolve quantas. As protegidas ficam; o que uma conta apagada tenha criado (e não seja
+     * protegido) sai junto, na mesma instrução.
+     */
+    public int apagarContasDeDemonstracao() {
+        return jdbc.sql(
+                        """
+                        DELETE FROM conta c
+                        WHERE NOT c.semeada
+                          AND NOT c.superadmin_real
+                          AND NOT EXISTS (SELECT 1 FROM conta r WHERE r.id = c.criada_por AND r.superadmin_real)
+                        """)
+                .update();
+    }
+
     /** Devolve se havia uma conta com esse id. */
     public boolean excluir(long id) {
         return jdbc.sql("DELETE FROM conta WHERE id = :id").param("id", id).update() > 0;

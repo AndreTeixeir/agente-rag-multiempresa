@@ -55,6 +55,22 @@ public class LimiteDiarioRepository {
     }
 
     /**
+     * Reivindica {@code chave} para o {@code dia}: insere a linha com contagem 1 se ela ainda não
+     * existe. Devolve se foi esta chamada que a inseriu — só uma chamada, por dia e chave, recebe
+     * {@code true}, mesmo com várias ao mesmo tempo (o {@code ON CONFLICT DO NOTHING} é atômico).
+     * Serve para "isto roda uma vez por dia" ({@code ResetDiarioService}).
+     */
+    public boolean reivindicar(LocalDate dia, String chave) {
+        return jdbc.sql(
+                        "INSERT INTO limite_diario (dia, chave, contagem) VALUES (:dia, :chave, 1) "
+                                + "ON CONFLICT (dia, chave) DO NOTHING")
+                .param("dia", dia)
+                .param("chave", chave)
+                .update()
+                == 1;
+    }
+
+    /**
      * Devolve uma unidade à contagem de {@code chave} no {@code dia}, sem passar de zero. Sem linha
      * (ou já em zero), não faz nada. Atômico, como o incremento.
      */
