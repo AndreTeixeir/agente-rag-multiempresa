@@ -27,7 +27,7 @@
     color: var(--tinta);
     background: var(--fundo);
     margin: 0;
-    padding: 2rem 1rem 3rem;
+    padding: 2rem 1rem 5rem;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
@@ -97,7 +97,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   #historico:empty::before {
-    content: "Escolha a empresa e faça sua pergunta.";
+    content: attr(data-vazio);
     display: block; margin-top: 5.5rem; text-align: center;
     color: var(--pardo); font-size: 0.9rem;
   }
@@ -167,6 +167,111 @@
 
   .rodape { margin-top: 0.9rem; font-size: 0.76rem; color: var(--pardo); text-align: center; }
 
+  [hidden] { display: none !important; }
+
+  h2 { font-family: var(--serif); font-size: 1.35rem; font-weight: 600; margin: 0 0 0.25rem; line-height: 1.2; }
+  h3 { font-family: var(--serif); font-size: 1.05rem; font-weight: 600; margin: 1.1rem 0 0.35rem; }
+  .sub { color: var(--pardo); font-size: 0.9rem; margin: 0 0 1rem; }
+
+  /* ---- Formulários (login e contas) ---- */
+  .campo { display: block; margin-bottom: 0.75rem; }
+  .campo > span {
+    display: block; font-size: 0.78rem; font-weight: 600; color: var(--pardo-escuro);
+    margin-bottom: 0.25rem; letter-spacing: 0.02em;
+  }
+  .campo input, .campo select {
+    width: 100%; padding: 0.6rem 0.7rem; font: inherit; color: var(--tinta);
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 7px;
+  }
+  .campo input:focus, .campo select:focus {
+    outline: none; border-color: var(--pardo); box-shadow: 0 0 0 3px rgba(110,100,85,.13);
+  }
+  .botao {
+    padding: 0.65rem 1.3rem; font: inherit; font-weight: 600; color: #fff;
+    background: var(--ferrugem); border: 1px solid var(--ferrugem);
+    border-radius: 7px; cursor: pointer; transition: background .15s;
+  }
+  .botao:hover { background: var(--ferrugem-fundo); }
+  .botao:disabled { opacity: .55; cursor: not-allowed; }
+  .botao-claro {
+    padding: 0.5rem 0.85rem; font: inherit; color: var(--pardo); background: transparent;
+    border: 1px solid var(--linha); border-radius: 7px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .botao-claro:hover { border-color: var(--pardo); color: var(--tinta); }
+  .botao-perigo { color: #7A2E12; border-color: #F0CDBE; }
+  .botao-perigo:hover { border-color: var(--ferrugem); color: #7A2E12; }
+  .aviso-form {
+    background: #FCEEE9; color: #7A2E12; border: 1px solid #F0CDBE;
+    border-left: 3px solid var(--ferrugem); border-radius: 6px;
+    padding: 0.55rem 0.75rem; margin: 0.75rem 0 0; font-size: 0.88rem;
+  }
+  .aviso-form.ok { background: #F1F4EC; color: #3E4A22; border-color: #D5DDC6; border-left-color: #6B7F3E; }
+
+  /* ---- Barra da conta e abas ---- */
+  #barra-conta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem;
+    margin-bottom: 0.85rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--linha);
+  }
+  #conta-nome { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; word-break: break-word; }
+  .selo {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;
+    color: var(--ferrugem-fundo); border: 1px solid var(--ferrugem); border-radius: 999px; padding: 0.1rem 0.55rem;
+  }
+  #conta-empresa { color: var(--pardo); font-size: 0.88rem; }
+  #barra-conta .espaco { flex: 1; }
+  .abas { display: flex; gap: 0.25rem; margin-bottom: 0.85rem; border-bottom: 1px solid var(--linha); }
+  .aba {
+    padding: 0.5rem 0.9rem; font: inherit; color: var(--pardo); background: transparent;
+    border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
+  }
+  .aba[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--ferrugem); font-weight: 600; }
+
+  /* ---- Contas ---- */
+  .lista-contas { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+  .linha-conta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem;
+    padding: 0.6rem 0.1rem; border-bottom: 1px solid var(--linha);
+  }
+  .linha-conta .quem { flex: 1 1 14rem; min-width: 0; }
+  .linha-conta .quem strong { display: block; word-break: break-word; }
+  .linha-conta .quem small { color: var(--pardo); }
+  .etiqueta { font-size: 0.7rem; color: var(--pardo-escuro); background: #EDEEE9; border-radius: 4px; padding: 0.1rem 0.4rem; }
+  .grade-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.75rem; }
+  .nota { color: var(--pardo); font-size: 0.85rem; margin: 0 0 0.75rem; }
+
+  /* ---- Balão de ajuda ---- */
+  #ajuda-botao {
+    position: fixed; right: 1rem; bottom: 1rem; z-index: 20; width: 3rem; height: 3rem;
+    border-radius: 50%; font: 700 1.3rem var(--serif); color: #fff; background: var(--ferrugem);
+    border: 2px solid #fff; box-shadow: 0 4px 14px rgba(35,33,29,.28); cursor: pointer;
+    transition: background .15s;
+  }
+  #ajuda-botao:hover { background: var(--ferrugem-fundo); }
+  #ajuda-painel {
+    position: fixed; right: 1rem; bottom: 4.6rem; z-index: 20;
+    width: min(390px, calc(100vw - 2rem)); max-height: min(72vh, 600px); overflow-y: auto;
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 12px;
+    box-shadow: 0 10px 34px rgba(35,33,29,.22); padding: 1rem; font-size: 0.9rem;
+  }
+  #ajuda-painel:focus { outline: none; }
+  #ajuda-painel h2 { font-size: 1.15rem; }
+  #ajuda-painel p { margin: 0.4rem 0; }
+  #ajuda-painel ol, #ajuda-painel ul { margin: 0.4rem 0; padding-left: 1.2rem; }
+  #ajuda-painel li { margin-bottom: 0.3rem; }
+  .fechar-ajuda { float: right; margin-left: 0.5rem; padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+  .cartoes { display: grid; gap: 0.5rem; margin: 0.6rem 0 0.9rem; }
+  .cartao-conta {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.55rem 0.7rem; background: #FAF9F6; border: 1px solid var(--linha);
+    border-left: 3px solid var(--ferrugem); border-radius: 8px;
+  }
+  .cartao-conta .dados { min-width: 0; }
+  .cartao-conta .titulo { font-weight: 600; font-size: 0.9rem; }
+  .cartao-conta .detalhe { color: var(--pardo); font-size: 0.78rem; }
+  .cartao-conta .credenciais { font-family: var(--mono); font-size: 0.78rem; color: var(--pardo-escuro); margin-top: 0.15rem; overflow-wrap: anywhere; }
+  .cartao-conta .botao { padding: 0.4rem 0.8rem; font-size: 0.85rem; flex: none; }
+
   :focus-visible { outline: 2px solid var(--ferrugem); outline-offset: 2px; }
 
   @media (max-width: 560px) {
@@ -175,6 +280,9 @@
     .hero-texto h1 { font-size: 1.75rem; }
     .tagline { font-size: 0.8rem; }
     .msg { max-width: 100%; }
+    .grade-form { grid-template-columns: 1fr; }
+    #ajuda-painel { right: 0.5rem; bottom: 4.4rem; width: calc(100vw - 1rem); }
+    #ajuda-botao { right: 0.75rem; bottom: 0.75rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -192,34 +300,143 @@
       </div>
     </header>
 
-    <main class="painel">
-      <div id="barra-topo">
-        <select id="empresa">
-          <option value="" disabled selected>Selecione a empresa</option>
-          <option value="bimbam">BimBam Buy</option>
-          <option value="mercado-central">Mercado Central 24h</option>
-          <option value="santo-pegasus">Santo Pegasus</option>
-        </select>
-        <button id="nova-conversa" type="button">Nova conversa</button>
+    <!-- Login: a primeira coisa que se vê. As contas de demonstração ficam no balão de ajuda (?). -->
+    <main id="tela-login" class="painel" hidden>
+      <h2>Entrar</h2>
+      <p class="sub">Use uma conta. Não tem uma? Abra o balão <strong>?</strong> no canto: ele mostra as contas de demonstração.</p>
+      <form id="form-login" novalidate>
+        <label class="campo"><span>Usuário</span>
+          <input id="login-usuario" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="100">
+        </label>
+        <label class="campo"><span>Senha</span>
+          <input id="login-senha" type="password" autocomplete="current-password" maxlength="200">
+        </label>
+        <button id="botao-entrar" class="botao" type="submit">Entrar</button>
+      </form>
+      <div id="login-aviso" class="aviso-form" role="alert" hidden></div>
+    </main>
+
+    <!-- Depois do login: o chat e, para admin e superadmin, a área de contas. -->
+    <main id="tela-app" class="painel" hidden>
+      <div id="barra-conta">
+        <span id="conta-nome"></span>
+        <span id="conta-papel" class="selo"></span>
+        <span id="conta-empresa"></span>
+        <span class="espaco"></span>
+        <button id="sair" class="botao-claro" type="button">Sair</button>
       </div>
 
-      <div id="erro-banner" hidden></div>
+      <div id="abas" class="abas" role="tablist" hidden>
+        <button id="botao-aba-chat" class="aba" type="button" role="tab" aria-selected="true" aria-controls="aba-chat">Conversa</button>
+        <button id="botao-aba-contas" class="aba" type="button" role="tab" aria-selected="false" aria-controls="aba-contas">Contas</button>
+      </div>
 
-      <div id="historico"></div>
+      <section id="aba-chat" role="tabpanel">
+        <div id="barra-topo">
+          <select id="empresa" hidden>
+            <option value="" disabled selected>Selecione a empresa</option>
+            <option value="bimbam">BimBam Buy</option>
+            <option value="mercado-central">Mercado Central 24h</option>
+            <option value="santo-pegasus">Santo Pegasus</option>
+          </select>
+          <button id="nova-conversa" type="button">Nova conversa</button>
+        </div>
 
-      <form id="form-mensagem">
-        <!-- maxlength acompanha app.demo.limites.tamanho-maximo-mensagem (application.yml); o backend valida de qualquer jeito. -->
-        <input id="mensagem" type="text" maxlength="1000" placeholder="Digite sua pergunta..." autocomplete="off">
-        <button id="mic" type="button" aria-label="Falar pergunta" title="Falar pergunta">🎤</button>
-        <button type="submit">Enviar</button>
-      </form>
+        <div id="erro-banner" hidden></div>
+
+        <div id="historico" data-vazio="Faça sua pergunta."></div>
+
+        <form id="form-mensagem">
+          <!-- maxlength acompanha app.demo.limites.tamanho-maximo-mensagem (application.yml); o backend valida de qualquer jeito. -->
+          <input id="mensagem" type="text" maxlength="1000" placeholder="Digite sua pergunta..." autocomplete="off">
+          <button id="mic" type="button" aria-label="Falar pergunta" title="Falar pergunta">🎤</button>
+          <button type="submit">Enviar</button>
+        </form>
+      </section>
+
+      <section id="aba-contas" role="tabpanel" hidden>
+        <h2>Contas</h2>
+        <p id="contas-sub" class="sub"></p>
+        <ul id="lista-contas" class="lista-contas"></ul>
+
+        <h3>Nova conta</h3>
+        <form id="form-conta" novalidate>
+          <div class="grade-form">
+            <label class="campo"><span>Usuário</span>
+              <input id="conta-usuario-novo" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" placeholder="de 3 a 40 caracteres">
+            </label>
+            <label class="campo"><span>Senha</span>
+              <input id="conta-senha-nova" type="password" autocomplete="new-password" maxlength="72" placeholder="pelo menos 8 caracteres">
+            </label>
+          </div>
+          <div id="campos-do-superadmin" class="grade-form" hidden>
+            <label class="campo"><span>Papel</span>
+              <select id="conta-papel-novo">
+                <option value="USUARIO">Usuário</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+            </label>
+            <label class="campo"><span>Empresa</span>
+              <select id="conta-empresa-nova">
+                <option value="" disabled selected>Selecione a empresa</option>
+                <option value="bimbam">BimBam Buy</option>
+                <option value="mercado-central">Mercado Central 24h</option>
+                <option value="santo-pegasus">Santo Pegasus</option>
+              </select>
+            </label>
+          </div>
+          <p id="nota-do-admin" class="nota" hidden></p>
+          <button id="botao-criar-conta" class="botao" type="submit">Criar conta</button>
+        </form>
+        <div id="aviso-contas" class="aviso-form" role="status" hidden></div>
+      </section>
     </main>
 
     <p class="rodape">Respostas geradas a partir dos documentos de cada empresa.</p>
   </div>
 
+  <!-- Balão de ajuda: um botão fixo no canto, em todas as telas. O conteúdo muda com a sessão. -->
+  <button id="ajuda-botao" type="button" aria-label="Ajuda: como usar a demo" aria-expanded="false" aria-controls="ajuda-painel" title="Como usar a demo">?</button>
+  <aside id="ajuda-painel" role="dialog" aria-label="Como usar a demo" tabindex="-1" hidden></aside>
+
 <script>
 (function () {
+  'use strict';
+
+  var EMPRESAS = {
+    'bimbam': 'BimBam Buy',
+    'mercado-central': 'Mercado Central 24h',
+    'santo-pegasus': 'Santo Pegasus'
+  };
+  var PAPEIS = { USUARIO: 'Usuário', ADMIN: 'Administrador', SUPERADMIN: 'Superadmin' };
+
+  // As 7 contas de demonstração (migração V5). A senha é pública, de propósito: a demo mostra as contas
+  // na tela de ajuda. Nenhuma outra senha aparece nesta página.
+  var SENHA_DA_DEMO = 'sabia-demo';
+  var CONTAS_DA_DEMO = [
+    { usuario: 'superadmin.demo', titulo: 'Superadmin', detalhe: 'Qualquer empresa; vê e administra todas as contas' },
+    { usuario: 'admin.bimbam', titulo: 'Administrador · BimBam Buy', detalhe: 'Cria e exclui usuários da BimBam' },
+    { usuario: 'usuario.bimbam', titulo: 'Usuário · BimBam Buy', detalhe: 'Conversa com os documentos da BimBam' },
+    { usuario: 'admin.mercadocentral', titulo: 'Administrador · Mercado Central 24h', detalhe: 'Cria e exclui usuários do Mercado Central' },
+    { usuario: 'usuario.mercadocentral', titulo: 'Usuário · Mercado Central 24h', detalhe: 'Conversa com os documentos do Mercado Central' },
+    { usuario: 'admin.santopegasus', titulo: 'Administrador · Santo Pegasus', detalhe: 'Cria e exclui usuários da Santo Pegasus' },
+    { usuario: 'usuario.santopegasus', titulo: 'Usuário · Santo Pegasus', detalhe: 'Conversa com os documentos da Santo Pegasus' }
+  ];
+
+  // Chave do "já mostrei o balão" no localStorage. A página funciona sem ele (ver lerMarcaDaAjuda).
+  var CHAVE_DA_AJUDA = 'sabia-ajuda-vista';
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, classe, texto) {
+    var no = document.createElement(tag);
+    if (classe) { no.className = classe; }
+    if (texto !== undefined) { no.textContent = texto; }
+    return no;
+  }
+
+  function nomeDaEmpresa(slug) { return EMPRESAS[slug] || slug; }
+
   // crypto.randomUUID() exige contexto seguro (https/localhost); getRandomValues não —
   // importa porque a Etapa 7 faz deploy em HTTP puro antes da Etapa 8 adicionar HTTPS.
   function uuidv4() {
@@ -231,16 +448,189 @@
         hex.slice(8, 10).join('') + '-' + hex.slice(10, 16).join('');
   }
 
-  var selectEmpresa = document.getElementById('empresa');
-  var botaoNovaConversa = document.getElementById('nova-conversa');
-  var historico = document.getElementById('historico');
-  var form = document.getElementById('form-mensagem');
-  var campoMensagem = document.getElementById('mensagem');
-  var erroBanner = document.getElementById('erro-banner');
-  var botaoMic = document.getElementById('mic');
+  var telaLogin = $('tela-login');
+  var telaApp = $('tela-app');
+  var formLogin = $('form-login');
+  var campoUsuario = $('login-usuario');
+  var campoSenha = $('login-senha');
+  var botaoEntrar = $('botao-entrar');
+  var avisoLogin = $('login-aviso');
 
+  var contaNome = $('conta-nome');
+  var contaPapel = $('conta-papel');
+  var contaEmpresa = $('conta-empresa');
+  var botaoSair = $('sair');
+  var abas = $('abas');
+  var botaoAbaChat = $('botao-aba-chat');
+  var botaoAbaContas = $('botao-aba-contas');
+  var abaChat = $('aba-chat');
+  var abaContas = $('aba-contas');
+
+  var selectEmpresa = $('empresa');
+  var botaoNovaConversa = $('nova-conversa');
+  var historico = $('historico');
+  var form = $('form-mensagem');
+  var campoMensagem = $('mensagem');
+  var erroBanner = $('erro-banner');
+  var botaoMic = $('mic');
+
+  var contasSub = $('contas-sub');
+  var listaContas = $('lista-contas');
+  var formConta = $('form-conta');
+  var contaUsuarioNovo = $('conta-usuario-novo');
+  var contaSenhaNova = $('conta-senha-nova');
+  var camposDoSuperadmin = $('campos-do-superadmin');
+  var contaPapelNovo = $('conta-papel-novo');
+  var contaEmpresaNova = $('conta-empresa-nova');
+  var notaDoAdmin = $('nota-do-admin');
+  var botaoCriarConta = $('botao-criar-conta');
+  var avisoContas = $('aviso-contas');
+
+  var botaoAjuda = $('ajuda-botao');
+  var painelAjuda = $('ajuda-painel');
+
+  // A conta logada ({usuario, papel, empresa}) ou null. Quem manda é o servidor: aqui só se mostra.
+  var sessao = null;
   var threadId = uuidv4();
   var conversaIniciada = false;
+
+  // ---- Chamadas ao servidor ----------------------------------------------------------------
+
+  // Devolve {ok, status, dados}. O cookie da sessão vai sozinho (mesma origem). Um 401 em qualquer
+  // chamada que não seja o próprio login quer dizer que a sessão acabou: volta para o login.
+  function chamar(metodo, caminho, corpo, ehLogin) {
+    var opcoes = { method: metodo, credentials: 'same-origin', headers: {} };
+    if (corpo !== undefined) {
+      opcoes.headers['Content-Type'] = 'application/json';
+      opcoes.body = JSON.stringify(corpo);
+    }
+    return fetch(caminho, opcoes).then(function (r) {
+      return r.text().then(function (texto) {
+        var dados = null;
+        try { dados = texto ? JSON.parse(texto) : null; } catch (e) { dados = null; }
+        var resposta = { ok: r.ok, status: r.status, dados: dados };
+        if (r.status === 401 && !ehLogin) {
+          sessaoAcabou();
+        }
+        return resposta;
+      });
+    });
+  }
+
+  function mensagemDe(resposta, padrao) {
+    return (resposta.dados && resposta.dados.erro) || padrao;
+  }
+
+  var SEM_SERVIDOR = 'Não consegui falar com o servidor. Tente de novo.';
+
+  // ---- Login e logout ----------------------------------------------------------------------
+
+  function avisar(no, texto, ok) {
+    no.textContent = texto;
+    no.className = ok ? 'aviso-form ok' : 'aviso-form';
+    no.hidden = false;
+  }
+
+  function mostrarLogin(aviso) {
+    sessao = null;
+    telaApp.hidden = true;
+    telaLogin.hidden = false;
+    historico.innerHTML = '';
+    listaContas.innerHTML = '';
+    avisoContas.hidden = true;
+    campoSenha.value = '';
+    if (aviso) { avisar(avisoLogin, aviso, false); } else { avisoLogin.hidden = true; }
+    botaoEntrar.disabled = false;
+    montarAjuda();
+    campoUsuario.focus();
+  }
+
+  function sessaoAcabou() {
+    if (sessao !== null) {
+      mostrarLogin('Sua sessão terminou. Entre de novo.');
+    }
+  }
+
+  function mostrarApp(dados) {
+    sessao = dados;
+    var ehSuperadmin = dados.papel === 'SUPERADMIN';
+    var empresa = nomeDaEmpresa(dados.empresa);
+
+    telaLogin.hidden = true;
+    telaApp.hidden = false;
+    avisoLogin.hidden = true;
+    contaNome.textContent = dados.usuario;
+    contaPapel.textContent = PAPEIS[dados.papel] || dados.papel;
+    contaEmpresa.textContent = ehSuperadmin ? 'todas as empresas' : empresa;
+
+    selectEmpresa.hidden = !ehSuperadmin;
+    abas.hidden = dados.papel === 'USUARIO';
+    historico.setAttribute('data-vazio',
+        ehSuperadmin ? 'Escolha a empresa e faça sua pergunta.' : 'Faça sua pergunta sobre a ' + empresa + '.');
+
+    camposDoSuperadmin.hidden = !ehSuperadmin;
+    notaDoAdmin.hidden = ehSuperadmin;
+    notaDoAdmin.textContent = 'A conta será criada como usuário da ' + empresa + '.';
+    contasSub.textContent = ehSuperadmin
+        ? 'Todas as contas da demonstração. As sete contas de demonstração não podem ser excluídas.'
+        : 'Os usuários da ' + empresa + '. Você pode criar e excluir usuários dela.';
+
+    novaConversa();
+    mostrarAba('chat');
+    montarAjuda();
+  }
+
+  function entrar(usuario, senha) {
+    avisoLogin.hidden = true;
+    botaoEntrar.disabled = true;
+    chamar('POST', '/api/auth/login', { usuario: usuario, senha: senha }, true)
+      .then(function (r) {
+        if (r.ok) {
+          campoSenha.value = '';
+          mostrarApp(r.dados);
+          return;
+        }
+        // 401: usuário ou senha. 429: muitas tentativas erradas. 403: origem da requisição. 400: campo vazio.
+        avisar(avisoLogin, mensagemDe(r, 'Não foi possível entrar.'), false);
+      })
+      .catch(function () { avisar(avisoLogin, SEM_SERVIDOR, false); })
+      .finally(function () { botaoEntrar.disabled = false; });
+  }
+
+  formLogin.addEventListener('submit', function (evento) {
+    evento.preventDefault();
+    var usuario = campoUsuario.value.trim();
+    if (!usuario || !campoSenha.value) {
+      avisar(avisoLogin, 'Informe o usuário e a senha.', false);
+      return;
+    }
+    entrar(usuario, campoSenha.value);
+  });
+
+  function sair() {
+    // Mesmo que o servidor não responda, a tela volta ao login.
+    return chamar('POST', '/api/auth/logout', {}, true)
+      .catch(function () { /* sem servidor: sai da tela mesmo assim */ })
+      .then(function () { mostrarLogin(null); });
+  }
+
+  botaoSair.addEventListener('click', function () { sair(); });
+
+  // ---- Abas ----------------------------------------------------------------------------------
+
+  function mostrarAba(nome) {
+    var noChat = nome === 'chat';
+    abaChat.hidden = !noChat;
+    abaContas.hidden = noChat;
+    botaoAbaChat.setAttribute('aria-selected', noChat ? 'true' : 'false');
+    botaoAbaContas.setAttribute('aria-selected', noChat ? 'false' : 'true');
+    if (!noChat) { carregarContas(); }
+  }
+
+  botaoAbaChat.addEventListener('click', function () { mostrarAba('chat'); });
+  botaoAbaContas.addEventListener('click', function () { mostrarAba('contas'); });
+
+  // ---- Chat ----------------------------------------------------------------------------------
 
   function mostrarErro(msg) {
     erroBanner.textContent = msg;
@@ -260,7 +650,7 @@
     historico.scrollTop = historico.scrollHeight;
   }
 
-  // Aviso do servidor dentro da conversa (limite diário, assistente indisponível):
+  // Aviso do servidor dentro da conversa (limite diário, assistente indisponível, sem permissão):
   // fica no histórico, não derruba a conversa, e a pessoa pode tentar de novo.
   function appendAvisoDoSistema(texto) {
     var div = document.createElement('div');
@@ -275,7 +665,8 @@
   function appendRespostaAssistente(resposta) {
     var div = document.createElement('div');
     div.className = 'msg assistente';
-    div.innerHTML = '<div class="autor">Assistente (' + resposta.empresa + ')</div><div class="texto"></div>';
+    div.innerHTML = '<div class="autor"></div><div class="texto"></div>';
+    div.querySelector('.autor').textContent = 'Assistente (' + resposta.empresa + ')';
     div.querySelector('.texto').textContent = resposta.texto;
 
     if (resposta.fontes && resposta.fontes.length > 0) {
@@ -305,6 +696,7 @@
     selectEmpresa.disabled = false;
     selectEmpresa.value = '';
     campoMensagem.value = '';
+    habilitarEntrada(true);
     esconderErro();
     campoMensagem.focus();
   }
@@ -374,10 +766,14 @@
     esconderErro();
 
     var pergunta = campoMensagem.value.trim();
-    if (!pergunta) {
+    if (!pergunta || sessao === null) {
       return;
     }
-    if (!conversaIniciada && !selectEmpresa.value) {
+    // Só o superadmin escolhe a empresa. Para os demais, ela é a da conta e o servidor ignora o que for
+    // enviado. O superadmin manda a empresa escolhida em TODA mensagem: se o reset diário apagar a
+    // conversa, a próxima mensagem recomeça sem erro.
+    var ehSuperadmin = sessao.papel === 'SUPERADMIN';
+    if (ehSuperadmin && !selectEmpresa.value) {
       mostrarErro('Selecione a empresa antes de começar a conversa.');
       return;
     }
@@ -386,50 +782,301 @@
     campoMensagem.value = '';
     habilitarEntrada(false);
 
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        threadId: threadId,
-        mensagem: pergunta,
-        empresaEscolhida: selectEmpresa.value || null
-      })
+    chamar('POST', '/api/chat', {
+      threadId: threadId,
+      mensagem: pergunta,
+      empresaEscolhida: ehSuperadmin ? selectEmpresa.value : null
     })
       .then(function (r) {
-        return r.json().then(function (dados) {
-          if (!r.ok) {
-            var erro = new Error(dados.erro || 'Erro desconhecido ao consultar o agente.');
-            erro.status = r.status;
-            throw erro;
+        if (r.status === 401) {
+          return; // sessaoAcabou() já levou para o login
+        }
+        if (r.ok) {
+          appendRespostaAssistente(r.dados);
+          if (!conversaIniciada) {
+            conversaIniciada = true;
+            selectEmpresa.disabled = true;
           }
-          return dados;
-        });
-      })
-      .then(function (dados) {
-        appendRespostaAssistente(dados);
-        if (!conversaIniciada) {
-          conversaIniciada = true;
-          selectEmpresa.disabled = true;
+          return;
         }
-      })
-      .catch(function (erro) {
-        // 429 (limite diário) e 503 (assistente indisponível) trazem uma mensagem
-        // escrita para quem usa: aparece na conversa. Os demais erros seguem no banner.
-        if (erro.status === 429 || erro.status === 503) {
-          appendAvisoDoSistema(erro.message);
+        // 429 (limite diário), 503 (assistente indisponível) e 403 trazem uma mensagem escrita para quem
+        // usa: aparece na conversa. Os demais erros seguem no banner.
+        var texto = mensagemDe(r, 'Erro desconhecido ao consultar o agente.');
+        if (r.status === 429 || r.status === 503 || r.status === 403) {
+          appendAvisoDoSistema(texto);
         } else {
-          mostrarErro(erro.message);
+          mostrarErro(texto);
         }
       })
+      .catch(function () { mostrarErro(SEM_SERVIDOR); })
       .finally(function () {
-        habilitarEntrada(true);
-        campoMensagem.focus();
+        if (sessao !== null) {
+          habilitarEntrada(true);
+          campoMensagem.focus();
+        }
       });
   });
 
-  campoMensagem.focus();
+  // ---- Contas (admin e superadmin) -------------------------------------------------------------
+
+  function carregarContas() {
+    avisoContas.hidden = true;
+    chamar('GET', '/api/contas')
+      .then(function (r) {
+        if (r.status === 401) { return; }
+        if (!r.ok) {
+          avisar(avisoContas, mensagemDe(r, 'Não consegui carregar as contas.'), false);
+          return;
+        }
+        desenharContas(r.dados);
+      })
+      .catch(function () { avisar(avisoContas, SEM_SERVIDOR, false); });
+  }
+
+  function desenharContas(contas) {
+    listaContas.innerHTML = '';
+    if (!contas || contas.length === 0) {
+      listaContas.appendChild(el('li', 'nota', 'Nenhuma conta por aqui ainda.'));
+      return;
+    }
+    contas.forEach(function (conta) {
+      var linha = el('li', 'linha-conta');
+      var quem = el('div', 'quem');
+      quem.appendChild(el('strong', null, conta.usuario));
+      var onde = conta.empresa ? nomeDaEmpresa(conta.empresa) : 'todas as empresas';
+      quem.appendChild(el('small', null, (PAPEIS[conta.papel] || conta.papel) + ' · ' + onde));
+      linha.appendChild(quem);
+      if (conta.protegida) {
+        linha.appendChild(el('span', 'etiqueta', 'protegida'));
+      }
+      // O botão só existe quando o servidor diz que pode excluir; o backend recusa de qualquer jeito.
+      if (conta.podeExcluir) {
+        var botao = el('button', 'botao-claro botao-perigo', 'Excluir');
+        botao.type = 'button';
+        botao.addEventListener('click', function () { excluirConta(conta); });
+        linha.appendChild(botao);
+      }
+      listaContas.appendChild(linha);
+    });
+  }
+
+  function excluirConta(conta) {
+    if (!window.confirm('Excluir a conta "' + conta.usuario + '"? As conversas dela também serão apagadas.')) {
+      return;
+    }
+    chamar('DELETE', '/api/contas/' + encodeURIComponent(conta.id))
+      .then(function (r) {
+        if (r.status === 401) { return; }
+        if (r.ok) {
+          avisar(avisoContas, 'Conta "' + conta.usuario + '" excluída.', true);
+        } else {
+          avisar(avisoContas, mensagemDe(r, 'Não consegui excluir a conta.'), false);
+        }
+        // Recarrega a lista, mas sem apagar o aviso que acabou de aparecer.
+        return chamar('GET', '/api/contas').then(function (lista) {
+          if (lista.ok) { desenharContas(lista.dados); }
+        });
+      })
+      .catch(function () { avisar(avisoContas, SEM_SERVIDOR, false); });
+  }
+
+  formConta.addEventListener('submit', function (evento) {
+    evento.preventDefault();
+    if (sessao === null) { return; }
+    var ehSuperadmin = sessao.papel === 'SUPERADMIN';
+    var corpo = { usuario: contaUsuarioNovo.value.trim(), senha: contaSenhaNova.value };
+    if (!corpo.usuario || !corpo.senha) {
+      avisar(avisoContas, 'Informe o usuário e a senha da nova conta.', false);
+      return;
+    }
+    if (ehSuperadmin) {
+      // Para o administrador, papel e empresa são decididos pelo servidor.
+      corpo.papel = contaPapelNovo.value;
+      corpo.empresa = contaEmpresaNova.value;
+      if (!corpo.empresa) {
+        avisar(avisoContas, 'Selecione a empresa da nova conta.', false);
+        return;
+      }
+    }
+    botaoCriarConta.disabled = true;
+    chamar('POST', '/api/contas', corpo)
+      .then(function (r) {
+        if (r.status === 401) { return; }
+        if (r.ok) {
+          avisar(avisoContas, 'Conta "' + r.dados.usuario + '" criada.', true);
+          contaUsuarioNovo.value = '';
+          contaSenhaNova.value = '';
+          return chamar('GET', '/api/contas').then(function (lista) {
+            if (lista.ok) { desenharContas(lista.dados); }
+          });
+        }
+        // 400 (dado inválido), 403 (sem permissão) e 429 (teto de cadastros) trazem a mensagem.
+        avisar(avisoContas, mensagemDe(r, 'Não consegui criar a conta.'), false);
+      })
+      .catch(function () { avisar(avisoContas, SEM_SERVIDOR, false); })
+      .finally(function () { botaoCriarConta.disabled = false; });
+  });
+
+  // ---- Balão de ajuda ------------------------------------------------------------------------
+
+  function lerMarcaDaAjuda() {
+    try {
+      return window.localStorage.getItem(CHAVE_DA_AJUDA) === '1' ? 'vista' : 'nova';
+    } catch (e) {
+      return 'indisponivel';
+    }
+  }
+
+  function gravarMarcaDaAjuda() {
+    try {
+      window.localStorage.setItem(CHAVE_DA_AJUDA, '1');
+    } catch (e) {
+      // Sem armazenamento (modo privativo, dados do site bloqueados): a página funciona igual.
+    }
+  }
+
+  function abrirAjuda(abrir) {
+    painelAjuda.hidden = !abrir;
+    botaoAjuda.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (abrir) {
+      painelAjuda.scrollTop = 0;
+      painelAjuda.focus();
+    }
+  }
+
+  botaoAjuda.addEventListener('click', function () { abrirAjuda(painelAjuda.hidden); });
+
+  document.addEventListener('keydown', function (evento) {
+    if (evento.key === 'Escape' && !painelAjuda.hidden) {
+      abrirAjuda(false);
+      botaoAjuda.focus();
+    }
+  });
+
+  function itens(tag, textos) {
+    var lista = el(tag);
+    textos.forEach(function (t) { lista.appendChild(el('li', null, t)); });
+    return lista;
+  }
+
+  var TEXTO_DOS_LIMITES = [
+    // Os números repetem app.demo.limites (application.yml) — ao mudar um, mude o outro.
+    'Perguntas: 100 por dia no total e 10 por IP.',
+    'Cadastros de contas: 50 por dia no total e 5 por IP.',
+    'Logins errados: até 10 por IP em cada hora.'
+  ];
+  var TEXTO_DO_RESET =
+      'Todo dia, à meia-noite (horário de Brasília), as contas criadas na demonstração e todas as conversas ' +
+      'são apagadas. As sete contas de demonstração ficam.';
+
+  function montarAjuda() {
+    painelAjuda.innerHTML = '';
+    var fechar = el('button', 'botao-claro fechar-ajuda', 'Fechar');
+    fechar.type = 'button';
+    fechar.addEventListener('click', function () { abrirAjuda(false); botaoAjuda.focus(); });
+    painelAjuda.appendChild(fechar);
+    if (sessao === null) { montarAjudaDoLogin(); } else { montarAjudaDaConta(); }
+  }
+
+  function montarAjudaDoLogin() {
+    painelAjuda.appendChild(el('h2', null, 'Como usar a demo'));
+    painelAjuda.appendChild(el('p', null,
+        'Escolha uma conta e clique em Entrar. A senha de todas é pública: ' + SENHA_DA_DEMO + '.'));
+
+    var cartoes = el('div', 'cartoes');
+    CONTAS_DA_DEMO.forEach(function (conta) {
+      var cartao = el('div', 'cartao-conta');
+      var dados = el('div', 'dados');
+      dados.appendChild(el('div', 'titulo', conta.titulo));
+      dados.appendChild(el('div', 'detalhe', conta.detalhe));
+      var credenciais = el('div', 'credenciais');
+      credenciais.appendChild(el('div', null, 'usuário: ' + conta.usuario));
+      credenciais.appendChild(el('div', null, 'senha: ' + SENHA_DA_DEMO));
+      dados.appendChild(credenciais);
+      cartao.appendChild(dados);
+      var botao = el('button', 'botao', 'Entrar');
+      botao.type = 'button';
+      botao.setAttribute('aria-label', 'Entrar como ' + conta.usuario);
+      botao.addEventListener('click', function () {
+        campoUsuario.value = conta.usuario;
+        campoSenha.value = SENHA_DA_DEMO;
+        abrirAjuda(false);
+        entrar(conta.usuario, SENHA_DA_DEMO);
+      });
+      cartao.appendChild(botao);
+      cartoes.appendChild(cartao);
+    });
+    painelAjuda.appendChild(cartoes);
+
+    painelAjuda.appendChild(el('h3', null, 'Um passeio'));
+    painelAjuda.appendChild(itens('ol', [
+      'Entre com uma conta de usuário e faça uma pergunta. A resposta cita o documento de onde veio, e você só conversa com a empresa da conta.',
+      'Entre como administrador (admin.…). Na aba Contas, crie um usuário novo. Depois use Sair e entre com ele.',
+      'O superadmin escolhe a empresa de cada conversa e, na aba Contas, vê todas as contas e cria administradores e usuários em qualquer empresa.'
+    ]));
+    painelAjuda.appendChild(el('h3', null, 'Limites da demo'));
+    painelAjuda.appendChild(itens('ul', TEXTO_DOS_LIMITES));
+    painelAjuda.appendChild(el('h3', null, 'Reset diário'));
+    painelAjuda.appendChild(el('p', null, TEXTO_DO_RESET));
+  }
+
+  function montarAjudaDaConta() {
+    var empresa = nomeDaEmpresa(sessao.empresa);
+    painelAjuda.appendChild(el('h2', null, 'O que esta conta pode'));
+    if (sessao.papel === 'USUARIO') {
+      painelAjuda.appendChild(el('p', null,
+          'Você é usuário da ' + empresa + '. Conversa com os documentos da ' + empresa +
+          ' e cada resposta cita o documento de onde veio. Você não vê nem altera outras contas.'));
+    } else if (sessao.papel === 'ADMIN') {
+      painelAjuda.appendChild(el('p', null,
+          'Você administra a ' + empresa + '. Além de conversar com os documentos dela, na aba Contas você ' +
+          'cria e exclui usuários da ' + empresa + '. Não cria outros administradores, e as contas de ' +
+          'demonstração não podem ser excluídas.'));
+    } else {
+      painelAjuda.appendChild(el('p', null,
+          'Você é superadmin. Escolhe a empresa de cada conversa e, na aba Contas, vê todas as contas, cria ' +
+          'administradores e usuários em qualquer empresa e exclui as que não são protegidas (as sete contas ' +
+          'de demonstração não saem).'));
+    }
+    painelAjuda.appendChild(el('h3', null, 'Limites da demo'));
+    painelAjuda.appendChild(itens('ul', TEXTO_DOS_LIMITES));
+    painelAjuda.appendChild(el('h3', null, 'Reset diário'));
+    painelAjuda.appendChild(el('p', null, TEXTO_DO_RESET));
+
+    var trocar = el('button', 'botao', 'Trocar de conta');
+    trocar.type = 'button';
+    trocar.style.marginTop = '0.5rem';
+    trocar.addEventListener('click', function () {
+      // Sai e volta ao login, com o balão aberto para escolher outra conta.
+      sair().then(function () { abrirAjuda(true); });
+    });
+    painelAjuda.appendChild(trocar);
+  }
+
+  // O balão abre sozinho na primeira visita; depois fica fechado até o clique. Se o armazenamento do
+  // navegador não estiver disponível, não dá para saber se é a primeira vez: não abre sozinho.
+  function abrirAjudaNaPrimeiraVisita() {
+    if (lerMarcaDaAjuda() === 'nova') {
+      abrirAjuda(true);
+      gravarMarcaDaAjuda();
+    }
+  }
+
+  // ---- Início --------------------------------------------------------------------------------
+
+  chamar('GET', '/api/auth/eu', undefined, true)
+    .then(function (r) {
+      if (r.ok) {
+        mostrarApp(r.dados);
+      } else {
+        mostrarLogin(null);
+      }
+    })
+    .catch(function () {
+      mostrarLogin(SEM_SERVIDOR);
+    })
+    .finally(abrirAjudaNaPrimeiraVisita);
 })();
 </script>
-  </div>
 </body>
 </html>
