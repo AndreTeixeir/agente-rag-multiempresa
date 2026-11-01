@@ -39,6 +39,8 @@ class ConversaServiceValidationTest {
 
     /** Ver {@link #pausarSeNaoForOPrimeiro()}. */
     private static final long PAUSA_MS = Long.getLong("pausa.conversa.ms", 26_000L);
+    /** O grafo identifica a conversa por conta + threadId; este teste usa uma conta qualquer, a de id 1. */
+    private static final long CONTA_DE_TESTE = 1L;
 
     private int chamadas = 0;
 
@@ -88,7 +90,7 @@ class ConversaServiceValidationTest {
     private ConversaService.RespostaConversa turno(String threadId, String empresaEscolhida, String pergunta) {
         pausarSeNaoForOPrimeiro();
         log.info("--- turno: empresaEscolhida={} | pergunta=\"{}\" ---", empresaEscolhida, pergunta);
-        var resposta = conversaService.responder(threadId, empresaEscolhida, pergunta);
+        var resposta = conversaService.responder(CONTA_DE_TESTE, threadId, empresaEscolhida, pergunta);
         log.info("empresa (estado)={}", resposta.empresa());
         log.info("RESPOSTA:\n{}", resposta.texto());
         log.info("FONTES: {}", resposta.fontes());

@@ -141,7 +141,7 @@ class ErrosDoProvedorIntegrationTest {
     void grafoEmbrulhaOErroDoProvedorEmCompletionException() {
         servidor.responderSempre(429, ServidorOpenAiFalso.erroDoProvedor("limite de teste"));
 
-        assertThatThrownBy(() -> conversaService.responder(novaConversa(), "bimbam", "pergunta de teste"))
+        assertThatThrownBy(() -> conversaService.responder(1L, novaConversa(), "bimbam", "pergunta de teste"))
                 .isInstanceOf(CompletionException.class)
                 .satisfies(erro -> assertThat(nomesDaCadeia(erro))
                         .containsSubsequence("CompletionException", "RateLimitException", "HttpException"));

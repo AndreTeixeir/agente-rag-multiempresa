@@ -36,6 +36,15 @@ public final class SessaoDeTeste {
         return conta(7, "usuario.teste", Papel.USUARIO, "bimbam");
     }
 
+    public static Conta superadmin() {
+        return conta(7, "superadmin.teste", Papel.SUPERADMIN, null);
+    }
+
+    /** O superadmin real: fora dos limites de perguntas. */
+    public static Conta superadminReal() {
+        return new Conta(7, "real.teste", "hash-que-nao-importa", Papel.SUPERADMIN, null, false, true, null, false, Instant.parse("2026-10-21T15:00:00Z"));
+    }
+
     /** Faz os mocks reconhecerem o cookie de {@link #cookie()} como a sessão de {@code conta}. */
     public static void entrarComo(TokenService tokens, AutenticacaoService autenticacao, Conta conta) {
         when(tokens.validar(TOKEN)).thenReturn(OptionalLong.of(conta.id()));

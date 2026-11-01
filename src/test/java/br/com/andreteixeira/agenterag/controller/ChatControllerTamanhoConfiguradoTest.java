@@ -1,6 +1,7 @@
 package br.com.andreteixeira.agenterag.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -77,7 +78,7 @@ class ChatControllerTamanhoConfiguradoTest {
 
     @Test
     void mensagemNoLimiteConfiguradoEhAceita() throws Exception {
-        when(conversaService.responder(anyString(), any(), anyString()))
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
         mockMvc.perform(post("/api/chat")

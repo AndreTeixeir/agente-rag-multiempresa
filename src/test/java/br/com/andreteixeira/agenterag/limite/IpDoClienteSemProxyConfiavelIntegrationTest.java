@@ -2,6 +2,7 @@ package br.com.andreteixeira.agenterag.limite;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,7 +83,7 @@ class IpDoClienteSemProxyConfiavelIntegrationTest {
 
     @Test
     void xForwardedForDeUmaConexaoQueNaoEhProxyInternoEhIgnorado() throws Exception {
-        when(conversaService.responder(anyString(), any(), anyString()))
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
         String sessao = tokens.emitir(contas.buscarPorUsuario("usuario.bimbam").orElseThrow().id());
