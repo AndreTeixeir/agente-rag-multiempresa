@@ -8,17 +8,18 @@ import java.time.ZoneOffset;
 /**
  * Relógio que só anda quando o teste manda — o jeito de fazer o dia virar sem
  * esperar. {@code withZone} devolve um relógio fixo no instante atual, o que
- * basta porque quem o usa lê a data logo em seguida.
+ * basta porque quem o usa lê a data logo em seguida. Público porque os testes de
+ * sessão e de reset, de outros pacotes, também fazem o tempo andar.
  */
-final class RelogioMutavel extends Clock {
+public final class RelogioMutavel extends Clock {
 
     private volatile Instant agora;
 
-    RelogioMutavel(Instant inicio) {
+    public RelogioMutavel(Instant inicio) {
         this.agora = inicio;
     }
 
-    void definir(Instant novo) {
+    public void definir(Instant novo) {
         this.agora = novo;
     }
 

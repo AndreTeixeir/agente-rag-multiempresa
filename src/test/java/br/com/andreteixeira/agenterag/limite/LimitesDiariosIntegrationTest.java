@@ -3,8 +3,11 @@ package br.com.andreteixeira.agenterag.limite;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.ContaRepository;
 import br.com.andreteixeira.agenterag.controller.DublesDoGrafoConfig;
 import br.com.andreteixeira.agenterag.resposta.ServidorOpenAiFalso;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -121,6 +124,12 @@ class LimitesDiariosIntegrationTest {
 
     @Autowired
     private JdbcClient jdbc;
+
+    @Autowired
+    private TokenService tokens;
+
+    @Autowired
+    private ContaRepository contas;
 
     @LocalServerPort
     private int porta;
@@ -258,6 +267,43 @@ class LimitesDiariosIntegrationTest {
                         "2026-10-21|ip:bbb|1");
     }
 
+    @Test
+    void limpezaApagaTodasAsChavesComHashDeIpDeDiasAnterioresEMantemAsDemais() {
+        String hash = "b".repeat(64);
+        // Os três tipos de chave com hash de IP, de ontem e de hoje, mais as sem IP.
+        semear(HOJE.minusDays(1), "ip:" + hash, 3);
+        semear(HOJE.minusDays(1), "login-ip:" + hash + ":09", 2);
+        semear(HOJE.minusDays(1), "cadastro-ip:" + hash, 4);
+        semear(HOJE, "ip:" + hash, 1);
+        semear(HOJE, "login-ip:" + hash + ":12", 1);
+        semear(HOJE, "cadastro-ip:" + hash, 1);
+        semear(HOJE.minusDays(1), "cadastro-total", 7);
+        semear(HOJE.minusDays(1), "reset-diario", 1);
+
+        servico.limparAntigosAgendado();
+
+        assertThat(linhasDoBanco())
+                .as("some o hash de IP de ontem, de qualquer tipo; ficam o de hoje e as chaves sem IP (até 7 dias)")
+                .containsExactly(
+                        "2026-10-20|cadastro-total|7",
+                        "2026-10-20|reset-diario|1",
+                        "2026-10-21|cadastro-ip:" + hash + "|1",
+                        "2026-10-21|ip:" + hash + "|1",
+                        "2026-10-21|login-ip:" + hash + ":12|1");
+    }
+
+    @Test
+    void asChavesNovasCabemNosOitentaCaracteresDaColuna() {
+        String ip = "203.0.113.200";
+        servico.reservarTentativaDeLogin(ip);
+        servico.registrarCadastro(ip);
+
+        assertThat(chavesDoBanco())
+                .filteredOn(chave -> chave.startsWith("login-ip:") || chave.startsWith("cadastro-ip:"))
+                .hasSize(2)
+                .allSatisfy(chave -> assertThat(chave).hasSizeLessThanOrEqualTo(80));
+    }
+
     // ---- IP do cliente, num Tomcat real --------------------------------------------------
 
     @Test
@@ -345,8 +391,13 @@ class LimitesDiariosIntegrationTest {
     private HttpResponse<String> postarChat(String xForwardedFor, String mensagem) throws Exception {
         String corpo = JSON.writeValueAsString(Map.of(
                 "threadId", UUID.randomUUID().toString(), "mensagem", mensagem, "empresaEscolhida", "bimbam"));
+        // O chat exige login. O token vem direto do TokenService (e não de um POST em /login) para
+        // não gravar linhas de tentativa de login em limite_diario: vários testes daqui conferem
+        // exatamente as linhas dessa tabela.
+        String sessao = tokens.emitir(contas.buscarPorUsuario("usuario.bimbam").orElseThrow().id());
         HttpRequest.Builder requisicao = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + porta + "/api/chat"))
                 .header("Content-Type", "application/json")
+                .header("Cookie", SessaoDeTeste.NOME_DO_COOKIE + "=" + sessao)
                 .POST(BodyPublishers.ofString(corpo));
         if (xForwardedFor != null) {
             requisicao.header("X-Forwarded-For", xForwardedFor);

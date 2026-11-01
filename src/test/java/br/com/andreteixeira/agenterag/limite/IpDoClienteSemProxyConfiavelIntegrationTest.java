@@ -2,11 +2,15 @@ package br.com.andreteixeira.agenterag.limite;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.ContaRepository;
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,6 +19,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -67,16 +72,24 @@ class IpDoClienteSemProxyConfiavelIntegrationTest {
     @MockitoBean
     private LimiteDiarioService limiteDiarioService;
 
+    @Autowired
+    private TokenService tokens;
+
+    @Autowired
+    private ContaRepository contas;
+
     @LocalServerPort
     private int porta;
 
     @Test
     void xForwardedForDeUmaConexaoQueNaoEhProxyInternoEhIgnorado() throws Exception {
-        when(conversaService.responder(anyString(), any(), anyString()))
+        when(conversaService.responder(anyLong(), anyString(), any(), anyString()))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
+        String sessao = tokens.emitir(contas.buscarPorUsuario("usuario.bimbam").orElseThrow().id());
         HttpRequest requisicao = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + porta + "/api/chat"))
                 .header("Content-Type", "application/json")
+                .header("Cookie", SessaoDeTeste.NOME_DO_COOKIE + "=" + sessao)
                 .header("X-Forwarded-For", "203.0.113.77")
                 .POST(BodyPublishers.ofString(
                         """

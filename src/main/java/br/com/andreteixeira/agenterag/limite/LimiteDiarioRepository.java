@@ -54,9 +54,41 @@ public class LimiteDiarioRepository {
         return contagem.map(OptionalInt::of).orElseGet(OptionalInt::empty);
     }
 
-    /** Apaga as contagens por IP (chaves {@code ip:*}) de dias anteriores a {@code dia}. */
+    /**
+     * Reivindica {@code chave} para o {@code dia}: insere a linha com contagem 1 se ela ainda não
+     * existe. Devolve se foi esta chamada que a inseriu — só uma chamada, por dia e chave, recebe
+     * {@code true}, mesmo com várias ao mesmo tempo (o {@code ON CONFLICT DO NOTHING} é atômico).
+     * Serve para "isto roda uma vez por dia" ({@code ResetDiarioService}).
+     */
+    public boolean reivindicar(LocalDate dia, String chave) {
+        return jdbc.sql(
+                        "INSERT INTO limite_diario (dia, chave, contagem) VALUES (:dia, :chave, 1) "
+                                + "ON CONFLICT (dia, chave) DO NOTHING")
+                .param("dia", dia)
+                .param("chave", chave)
+                .update()
+                == 1;
+    }
+
+    /**
+     * Devolve uma unidade à contagem de {@code chave} no {@code dia}, sem passar de zero. Sem linha
+     * (ou já em zero), não faz nada. Atômico, como o incremento.
+     */
+    public void decrementar(LocalDate dia, String chave) {
+        jdbc.sql("UPDATE limite_diario SET contagem = contagem - 1 WHERE dia = :dia AND chave = :chave AND contagem > 0")
+                .param("dia", dia)
+                .param("chave", chave)
+                .update();
+    }
+
+    /**
+     * Apaga as contagens que carregam o hash de um IP — as chaves {@code ip:*} (perguntas por IP),
+     * {@code login-ip:*} e {@code cadastro-ip:*} — de dias anteriores a {@code dia}. O hash do IP não
+     * fica guardado além do dia. As chaves sem IP ({@code total}, {@code cadastro-total},
+     * {@code reset-diario}) saem pela retenção de 7 dias.
+     */
     public int apagarContagensDeIpAnterioresA(LocalDate dia) {
-        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave LIKE 'ip:%'")
+        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave ~ '^(login-|cadastro-)?ip:'")
                 .param("dia", dia)
                 .update();
     }

@@ -1,10 +1,9 @@
 package br.com.andreteixeira.agenterag.grafo;
 
+import br.com.andreteixeira.agenterag.conta.Empresas;
 import br.com.andreteixeira.agenterag.resposta.RespostaService;
 import dev.langchain4j.model.chat.ChatModel;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,27 +33,11 @@ class ConversaNodes {
     private static final Logger log = LoggerFactory.getLogger(ConversaNodes.class);
 
     /**
-     * Empresas conhecidas pelo sistema — os mesmos três valores que
-     * {@code IngestionService.PREFIXO_EMPRESA} grava no metadado
-     * {@code empresa} de cada chunk (conferido lendo aquele código-fonte,
-     * achado #1 da revisão de diff da Etapa 5,
-     * {@code 2026-08-18-etapa-5-revisao-diff.md}).
-     * <p>
-     * <b>Isso DUPLICA aquela lista</b> — {@code PREFIXO_EMPRESA} é
-     * {@code private} em {@code IngestionService}, não reutilizável daqui sem
-     * acoplar o pacote {@code grafo} ao pacote {@code ingestao} só por causa
-     * de uma constante. Se uma quarta empresa for adicionada ao sistema,
-     * **este {@code Set} também precisa ser atualizado manualmente** — o
-     * build não avisa se um dos dois lugares for esquecido.
-     * <p>
-     * {@code LinkedHashSet}, não {@code Set.of(...)}: a ordem de iteração de
-     * {@code Set.of(...)} não é estável entre execuções da JVM (varia por
-     * segurança desde o Java 9), o que deixaria a mensagem de erro abaixo com
-     * uma ordem diferente a cada vez — ruim para ler log e para escrever um
-     * teste que compare o texto da exceção.
+     * Empresas conhecidas pelo sistema: a lista única de {@link Empresas#SLUGS}, que também
+     * valida as empresas das contas. Ver o javadoc de {@link Empresas} sobre a cópia que
+     * {@code IngestionService} ainda mantém.
      */
-    private static final Set<String> EMPRESAS_VALIDAS =
-            Collections.unmodifiableSet(new LinkedHashSet<>(List.of("bimbam", "mercado-central", "santo-pegasus")));
+    private static final Set<String> EMPRESAS_VALIDAS = Empresas.SLUGS;
 
     private static final String PROMPT_REESCRITA =
             """

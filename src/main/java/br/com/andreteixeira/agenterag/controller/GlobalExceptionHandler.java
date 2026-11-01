@@ -1,5 +1,8 @@
 package br.com.andreteixeira.agenterag.controller;
 
+import br.com.andreteixeira.agenterag.conta.CredenciaisInvalidasException;
+import br.com.andreteixeira.agenterag.conta.OperacaoNaoPermitidaException;
+import br.com.andreteixeira.agenterag.conta.RecursoNaoEncontradoException;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
 import dev.langchain4j.exception.HttpException;
@@ -17,10 +20,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -45,10 +50,16 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
  *     causas até achar um dos tipos acima, ou um {@link LangChain4jException}
  *     do provedor do modelo, e delega para o handler certo; sem achar, cai no
  *     genérico.</li>
- *     <li>{@link LimiteDiarioExcedidoException} — limite diário do chat público
- *     atingido (o total da demo ou o do IP) — 429, com a mensagem do caso. É
- *     lançada pelo controller, antes de o grafo rodar, então chega "nua" e não
- *     embrulhada em {@link CompletionException}.</li>
+ *     <li>{@link LimiteDiarioExcedidoException} — limite do chat público atingido
+ *     (o total da demo ou o do IP) ou tentativas de login erradas demais — 429, com a
+ *     mensagem do caso. É lançada pelo controller, antes de o grafo rodar, então chega
+ *     "nua" e não embrulhada em {@link CompletionException}.</li>
+ *     <li>{@link CredenciaisInvalidasException} — usuário ou senha que não conferem —
+ *     401, com a mesma mensagem para os dois casos.</li>
+ *     <li>{@link HttpMessageNotReadableException} — corpo que não é o JSON esperado — 400.</li>
+ *     <li>{@link RecursoNaoEncontradoException} (404) e {@link OperacaoNaoPermitidaException} (403) —
+ *     as recusas do serviço de contas. Existem no lugar do {@code AccessDeniedException} do Spring
+ *     Security, que o {@code @ExceptionHandler(Exception.class)} abaixo engoliria como 500.</li>
  *     <li>{@link LangChain4jException} — falha na chamada ao provedor do modelo
  *     de chat (confirmado no fonte da LangChain4j 1.18.1: o cliente HTTP
  *     traduz o status em exceção). Limite de requisições (429,
@@ -83,6 +94,12 @@ public class GlobalExceptionHandler {
             "A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília).";
     private static final String LIMITE_DO_IP =
             "Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília).";
+    private static final String LIMITE_DE_LOGIN =
+            "Muitas tentativas de login erradas. Tente novamente na próxima hora.";
+    private static final String LIMITE_TOTAL_DE_CADASTROS =
+            "A demo atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília).";
+    private static final String LIMITE_DE_CADASTROS_DO_IP =
+            "Você atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília).";
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -103,6 +120,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("erro", mensagem));
     }
 
+    /** Corpo que não é JSON, ou JSON de outra forma: erro de quem chamou, não do servidor. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleCorpoIlegivel(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest().body(Map.of("erro", "Corpo da requisição inválido."));
+    }
+
     @ExceptionHandler(EstadoGrafoInvalidoException.class)
     public ResponseEntity<Map<String, String>> handleEstadoGrafoInvalido(EstadoGrafoInvalidoException ex) {
         log.error("Invariante interna do grafo quebrada", ex);
@@ -111,22 +134,55 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LimiteDiarioExcedidoException.class)
     public ResponseEntity<Map<String, String>> handleLimiteDiarioExcedido(LimiteDiarioExcedidoException ex) {
-        String mensagem = ex.tipo() == LimiteDiarioExcedidoException.Tipo.TOTAL ? LIMITE_TOTAL_DA_DEMO : LIMITE_DO_IP;
-        log.info("Pergunta recusada pelo limite diário: {}", ex.tipo());
+        boolean doTotal = ex.tipo() == LimiteDiarioExcedidoException.Tipo.TOTAL;
+        String mensagem =
+                switch (ex.assunto()) {
+                    case LOGIN -> LIMITE_DE_LOGIN;
+                    case CADASTROS -> doTotal ? LIMITE_TOTAL_DE_CADASTROS : LIMITE_DE_CADASTROS_DO_IP;
+                    case PERGUNTAS -> doTotal ? LIMITE_TOTAL_DA_DEMO : LIMITE_DO_IP;
+                };
+        log.info("Requisição recusada pelo limite: {} / {}", ex.assunto(), ex.tipo());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("erro", mensagem));
+    }
+
+    /** A conta não existe, ou quem pediu não pode nem saber que existe — a mesma resposta nos dois casos. */
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> handleRecursoNaoEncontrado(RecursoNaoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("erro", ex.getMessage()));
+    }
+
+    /** O papel não permite. Lançada pelo serviço de contas, não pelo Spring Security (ver o javadoc da exceção). */
+    @ExceptionHandler(OperacaoNaoPermitidaException.class)
+    public ResponseEntity<Map<String, String>> handleOperacaoNaoPermitida(OperacaoNaoPermitidaException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("erro", ex.getMessage()));
+    }
+
+    /** Um id de conta que não é número, por exemplo. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleTipoDeArgumento(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(Map.of("erro", "Identificador inválido."));
+    }
+
+    @ExceptionHandler(CredenciaisInvalidasException.class)
+    public ResponseEntity<Map<String, String>> handleCredenciaisInvalidas(CredenciaisInvalidasException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("erro", ex.getMessage()));
     }
 
     @ExceptionHandler(LangChain4jException.class)
     public ResponseEntity<Map<String, String>> handleErroDoProvedor(LangChain4jException ex) {
-        if (ex instanceof RateLimitException || statusHttpDoProvedor(ex) == HTTP_PAGAMENTO_NECESSARIO) {
-            log.warn("Provedor do modelo recusou por limite de uso ou saldo: {}", ex.getMessage());
+        // O código HTTP que o provedor devolveu entra em todo log deste ramo: é o que separa uma chave
+        // inválida (401) de um saldo esgotado (402) ou de uma falha dele (5xx) sem abrir o stack trace.
+        int statusDoProvedor = statusHttpDoProvedor(ex);
+        String codigo = statusDoProvedor < 0 ? "sem código HTTP" : "HTTP " + statusDoProvedor;
+        if (ex instanceof RateLimitException || statusDoProvedor == HTTP_PAGAMENTO_NECESSARIO) {
+            log.warn("Provedor do modelo recusou por limite de uso ou saldo ({}): {}", codigo, ex.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("erro", LIMITE_DE_USO_DO_PROVEDOR));
         }
         if (ex instanceof TimeoutException) {
-            log.warn("Provedor do modelo não respondeu dentro do tempo limite: {}", ex.getMessage());
+            log.warn("Provedor do modelo não respondeu dentro do tempo limite ({}): {}", codigo, ex.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("erro", TEMPO_LIMITE_DO_PROVEDOR));
         }
-        log.error("Erro do provedor do modelo", ex);
+        log.error("Erro do provedor do modelo ({})", codigo, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("erro", ERRO_INTERNO_GENERICO));
     }
 

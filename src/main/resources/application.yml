@@ -15,6 +15,10 @@ spring:
     password: ${DB_PASSWORD:rag}
     driver-class-name: org.postgresql.Driver
   jpa:
+    # Sem open-in-view: não há entidade JPA nem carregamento preguiçoso na aplicação (o acesso ao
+    # banco é por JDBC), então nada depende de manter o EntityManager aberto durante a requisição.
+    # Também evita o aviso que o Spring Boot dá no boot quando esta propriedade fica no padrão.
+    open-in-view: false
     hibernate:
       # Schema é gerenciado pelo Flyway (src/main/resources/db/migration), não
       # pelo Hibernate — não há entidade JPA para a tabela document_chunks
@@ -40,6 +44,24 @@ management:
       show-details: always
 
 app:
+  auth:
+    # Segredo que assina o token da sessão (JWT HS256). Placeholder explícito: o nome da
+    # variável não segue o relaxed binding desta propriedade. Vazio: o app gera um segredo
+    # aleatório a cada boot e avisa — cômodo no notebook; em produção a variável existe.
+    # Com valor, precisa ter pelo menos 32 bytes (openssl rand -base64 48).
+    jwt-secret: ${APP_AUTH_JWT_SECRET:}
+    # Atributo Secure do cookie da sessão. No Chrome (testado) o cookie Secure funciona em
+    # http://localhost, então o notebook roda com o padrão. Desligue (APP_AUTH_COOKIE_SEGURO=false)
+    # para rodar por http:// fora do localhost, ou num cliente que não aceite o cookie Secure em
+    # http (outros navegadores e ferramentas de linha de comando não foram testados). Também define
+    # o esquema esperado na conferência do Origin — que aceita http e https no próprio loopback.
+    cookie-seguro: ${APP_AUTH_COOKIE_SEGURO:true}
+    duracao-da-sessao: 8h
+  superadmin:
+    # O superadmin real: criado (ou atualizado) no boot a partir destas duas variáveis, que o
+    # dono define só no servidor. Sem as duas, ele não existe. Nunca vão para o log.
+    usuario: ${APP_SUPERADMIN_USUARIO:}
+    senha: ${APP_SUPERADMIN_SENHA:}
   demo:
     # Proteção do chat público (/api/chat). As perguntas por dia são contadas por pergunta
     # aceita, no Postgres (tabela limite_diario, V4), então sobrevivem a reinício e
@@ -48,6 +70,13 @@ app:
       perguntas-por-dia: 100
       perguntas-por-ip-por-dia: 10
       fuso: America/Sao_Paulo
+      # Logins ERRADOS por IP em cada hora. Passou disso, o login responde 429 até a hora
+      # virar (inclusive com a senha certa); o login certo devolve a vaga.
+      tentativas-de-login-por-ip-por-hora: 10
+      # Contas criadas pela API de administração, por dia: no total e por IP. Excluir uma conta
+      # não devolve a vaga. O superadmin real fica fora. Zero bloqueia todos os cadastros.
+      cadastros-por-dia: 50
+      cadastros-por-ip-por-dia: 5
       # Máximo de caracteres de uma mensagem do chat. Acima disso a API responde 400,
       # sem contar a pergunta e sem chamar o modelo. O index.html repete este valor no
       # maxlength do campo de mensagem — ao mudar um, mude o outro.

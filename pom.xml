@@ -56,6 +56,23 @@
 		</dependency>
 
 		<dependency>
+			<!-- Spring Security 7.1.0, versão do BOM do Spring Boot 4.1.0
+			     (spring-security.version): cadeia de filtros, autorização por rota e
+			     BCrypt (spring-security-crypto, que vem por aqui). -->
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<!-- JWT da sessão (cookie). É o NimbusJwtEncoder/NimbusJwtDecoder do próprio
+			     Spring Security, sobre a nimbus-jose-jwt que este módulo declara (10.9 no
+			     7.1.0 — a que o Spring Security testou, não sobrescrever). Não usa o
+			     starter de resource server: o token vem de um cookie, não do cabeçalho
+			     Authorization, e o filtro que o lê é nosso. -->
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
@@ -131,6 +148,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
