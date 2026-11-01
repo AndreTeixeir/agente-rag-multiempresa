@@ -278,14 +278,15 @@ uma conta que quem pediu não enxerga (de outra empresa, ou o superadmin real).
   encerra a sessão dela na hora. O segredo vem de `APP_AUTH_JWT_SECRET`.
 - **Barreira de CSRF: conferência do `Origin`.** Em `POST`, `PUT`, `PATCH` e `DELETE`, se o navegador
   mandou `Origin`, ele precisa ser o do próprio site, senão 403. O `SameSite=Strict` sozinho não
-  bastaria: `sentiment.andreteixeira.dev.br` roda na mesma VM e é do mesmo *site* que
-  `andreteixeira.dev.br`, e uma página de lá consegue mandar uma requisição com o cookie, mas o `Origin`
-  dela é outro. Vale também para o login (*login CSRF*). Sem `Origin` a requisição passa, porque os
-  navegadores o mandam nessas requisições e a ausência indica um cliente sem navegador (curl, teste);
-  o esquema esperado vem de `APP_AUTH_COOKIE_SEGURO`, exceto no próprio loopback, onde `http` e
-  `https` valem (é como se roda no notebook). Escolhi isto em vez do token CSRF do Spring porque o
-  front é uma página estática: o token exigiria ler o cookie no JavaScript, uma requisição de partida
-  para semeá-lo e um login que o recebe antes de existir sessão.
+  bastaria: `sentiment.andreteixeira.dev.br` é servido pelo mesmo Caddy, que repassa para outra VM, e
+  é do mesmo *site* que `andreteixeira.dev.br`: uma página de lá consegue mandar uma requisição com o
+  cookie, mas o `Origin` dela é outro. Vale também para o login (*login CSRF*). Sem `Origin` a
+  requisição passa, porque os navegadores o mandam nessas requisições e a ausência indica um
+  cliente sem navegador (curl, teste); o esquema esperado vem de `APP_AUTH_COOKIE_SEGURO`, exceto
+  no próprio loopback, onde `http` e `https` valem (é como se roda no notebook). Escolhi isto em
+  vez do token CSRF do Spring porque o front é uma página estática: o token exigiria ler o cookie
+  no JavaScript, uma requisição de partida para semeá-lo e um login que o recebe antes de existir
+  sessão.
 - **A conversa é presa à conta.** No grafo, ela se chama `<id da conta>:<threadId>`: uma conta nunca
   alcança a conversa de outra, mesmo sabendo o `threadId` dela. O `threadId` é validado (1 a 64 letras,
   números, hífen ou sublinhado).
