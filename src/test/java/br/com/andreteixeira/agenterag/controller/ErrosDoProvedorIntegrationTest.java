@@ -3,8 +3,11 @@ package br.com.andreteixeira.agenterag.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.ContaRepository;
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.resposta.ServidorOpenAiFalso;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -96,6 +99,12 @@ class ErrosDoProvedorIntegrationTest {
 
     @Autowired
     private ConversaService conversaService;
+
+    @Autowired
+    private TokenService tokens;
+
+    @Autowired
+    private ContaRepository contas;
 
     @LocalServerPort
     private int porta;
@@ -221,8 +230,10 @@ class ErrosDoProvedorIntegrationTest {
     private HttpResponse<String> postarChat(String conversa, String mensagem) throws Exception {
         String corpo = JSON.writeValueAsString(
                 Map.of("threadId", conversa, "mensagem", mensagem, "empresaEscolhida", "bimbam"));
+        String sessao = tokens.emitir(contas.buscarPorUsuario("usuario.bimbam").orElseThrow().id());
         HttpRequest requisicao = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + porta + "/api/chat"))
                 .header("Content-Type", "application/json")
+                .header("Cookie", SessaoDeTeste.NOME_DO_COOKIE + "=" + sessao)
                 .POST(BodyPublishers.ofString(corpo))
                 .build();
         return http.send(requisicao, BodyHandlers.ofString());

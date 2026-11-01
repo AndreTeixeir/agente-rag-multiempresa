@@ -3,8 +3,11 @@ package br.com.andreteixeira.agenterag.limite;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.ContaRepository;
 import br.com.andreteixeira.agenterag.controller.DublesDoGrafoConfig;
 import br.com.andreteixeira.agenterag.resposta.ServidorOpenAiFalso;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -121,6 +124,12 @@ class LimitesDiariosIntegrationTest {
 
     @Autowired
     private JdbcClient jdbc;
+
+    @Autowired
+    private TokenService tokens;
+
+    @Autowired
+    private ContaRepository contas;
 
     @LocalServerPort
     private int porta;
@@ -345,8 +354,13 @@ class LimitesDiariosIntegrationTest {
     private HttpResponse<String> postarChat(String xForwardedFor, String mensagem) throws Exception {
         String corpo = JSON.writeValueAsString(Map.of(
                 "threadId", UUID.randomUUID().toString(), "mensagem", mensagem, "empresaEscolhida", "bimbam"));
+        // O chat exige login. O token vem direto do TokenService (e não de um POST em /login) para
+        // não gravar linhas de tentativa de login em limite_diario: vários testes daqui conferem
+        // exatamente as linhas dessa tabela.
+        String sessao = tokens.emitir(contas.buscarPorUsuario("usuario.bimbam").orElseThrow().id());
         HttpRequest.Builder requisicao = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + porta + "/api/chat"))
                 .header("Content-Type", "application/json")
+                .header("Cookie", SessaoDeTeste.NOME_DO_COOKIE + "=" + sessao)
                 .POST(BodyPublishers.ofString(corpo));
         if (xForwardedFor != null) {
             requisicao.header("X-Forwarded-For", xForwardedFor);

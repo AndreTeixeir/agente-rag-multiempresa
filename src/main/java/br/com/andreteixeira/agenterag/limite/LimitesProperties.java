@@ -13,10 +13,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * configuração inválida e a aplicação não sobe. {@code tamanhoMaximoMensagem}
  * é o máximo de caracteres (unidades UTF-16, como o {@code maxlength} do
  * navegador) de uma mensagem, e precisa ser pelo menos 1.
+ * <p>
+ * {@code tentativasDeLoginPorIpPorHora} é o máximo de logins ERRADOS por IP em cada hora
+ * (a hora do relógio, no mesmo fuso); a partir dele o login responde 429 até a hora virar.
  */
 @ConfigurationProperties(prefix = "app.demo.limites")
 public record LimitesProperties(
-        int perguntasPorDia, int perguntasPorIpPorDia, ZoneId fuso, int tamanhoMaximoMensagem) {
+        int perguntasPorDia,
+        int perguntasPorIpPorDia,
+        ZoneId fuso,
+        int tamanhoMaximoMensagem,
+        int tentativasDeLoginPorIpPorHora) {
 
     public LimitesProperties {
         if (perguntasPorDia < 0) {
@@ -32,6 +39,10 @@ public record LimitesProperties(
         if (tamanhoMaximoMensagem < 1) {
             throw new IllegalArgumentException(
                     "app.demo.limites.tamanho-maximo-mensagem precisa ser pelo menos 1: " + tamanhoMaximoMensagem);
+        }
+        if (tentativasDeLoginPorIpPorHora < 0) {
+            throw new IllegalArgumentException(
+                    "app.demo.limites.tentativas-de-login-por-ip-por-hora não pode ser negativo: " + tentativasDeLoginPorIpPorHora);
         }
     }
 }

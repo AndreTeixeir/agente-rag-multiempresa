@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.OptionalInt;
 import org.slf4j.Logger;
@@ -27,8 +28,8 @@ import org.springframework.transaction.support.TransactionOperations;
  * <p>
  * <b>Privacidade:</b> o IP nunca é gravado em texto, só o hash SHA-256 dele
  * (sem sal — ver o relatório da rodada). Contagens de IP de dias anteriores
- * são apagadas, e só o dia corrente fica guardado; as do total ficam
- * {@value #DIAS_DE_RETENCAO_DO_TOTAL} dias.
+ * (as de perguntas e as de tentativas de login) são apagadas, e só o dia
+ * corrente fica guardado; as do total ficam {@value #DIAS_DE_RETENCAO_DO_TOTAL} dias.
  * <p>
  * <b>O dia vira à meia-noite do fuso configurado</b>
  * ({@code app.demo.limites.fuso}), a partir do {@link Clock} injetado.
@@ -40,6 +41,7 @@ public class LimiteDiarioService {
 
     static final String CHAVE_TOTAL = "total";
     static final String PREFIXO_CHAVE_IP = "ip:";
+    static final String PREFIXO_CHAVE_LOGIN = "login-ip:";
     static final int DIAS_DE_RETENCAO_DO_TOTAL = 7;
 
     private static final String IP_DESCONHECIDO = "desconhecido";
@@ -85,6 +87,38 @@ public class LimiteDiarioService {
     }
 
     /**
+     * Reserva, de forma atômica, uma das tentativas de login do {@code ip} na hora atual — ANTES de
+     * a senha ser conferida, então nenhuma tentativa em paralelo passa do limite. Sem vaga, lança
+     * {@link LimiteDiarioExcedidoException} (429) e a senha nem chega a ser conferida, nem a certa.
+     * Quem acerta o login devolve a vaga com {@link #devolverTentativaDeLogin}: só as tentativas
+     * erradas consomem o limite.
+     * <p>
+     * A chave é {@code login-ip:<sha256 do IP>:<hora>}; o dia está na própria linha. A hora é a do
+     * relógio no fuso configurado, e a vaga volta quando ela vira.
+     */
+    public TentativaDeLogin reservarTentativaDeLogin(String ip) {
+        LocalDateTime agora = LocalDateTime.now(relogio.withZone(limites.fuso()));
+        String chave = PREFIXO_CHAVE_LOGIN
+                + sha256Hex(ip == null || ip.isBlank() ? IP_DESCONHECIDO : ip)
+                + ":"
+                + String.format("%02d", agora.getHour());
+        LocalDate dia = agora.toLocalDate();
+        if (repository.incrementarSeAbaixoDoLimite(dia, chave, limites.tentativasDeLoginPorIpPorHora()).isEmpty()) {
+            throw new LimiteDiarioExcedidoException(LimiteDiarioExcedidoException.Tipo.IP, LimiteDiarioExcedidoException.Assunto.LOGIN);
+        }
+        return new TentativaDeLogin(dia, chave);
+    }
+
+    /** Devolve a vaga de um login que deu certo. */
+    public void devolverTentativaDeLogin(TentativaDeLogin tentativa) {
+        repository.decrementar(tentativa.dia(), tentativa.chave());
+    }
+
+    /** A vaga reservada por {@link #reservarTentativaDeLogin}: a linha de {@code limite_diario} que a guarda. */
+    public record TentativaDeLogin(LocalDate dia, String chave) {
+    }
+
+    /**
      * Limpeza agendada, um minuto depois da meia-noite do fuso configurado: os
      * hashes de IP de ontem não ficam esperando a primeira pergunta do dia.
      */
@@ -101,7 +135,7 @@ public class LimiteDiarioService {
         try {
             int ips = repository.apagarContagensDeIpAnterioresA(hoje);
             int antigos = repository.apagarContagensAnterioresA(hoje.minusDays(DIAS_DE_RETENCAO_DO_TOTAL));
-            log.info("Limpeza dos contadores diários: {} contagens de IP de dias anteriores e {} com mais de {} dias apagadas",
+            log.info("Limpeza dos contadores diários: {} contagens com hash de IP de dias anteriores e {} com mais de {} dias apagadas",
                     ips, antigos, DIAS_DE_RETENCAO_DO_TOTAL);
         } catch (RuntimeException e) {
             log.warn("Não foi possível limpar os contadores diários antigos", e);

@@ -42,8 +42,15 @@ class LimiteDiarioServiceTest {
     private final RelogioMutavel relogio = new RelogioMutavel(MEIO_DIA_DE_21_DE_OUTUBRO);
 
     private LimiteDiarioService servico(int perguntasPorDia, int perguntasPorIpPorDia) {
+        return servico(perguntasPorDia, perguntasPorIpPorDia, 10);
+    }
+
+    private LimiteDiarioService servico(int perguntasPorDia, int perguntasPorIpPorDia, int tentativasDeLoginPorHora) {
         return new LimiteDiarioService(
-                repositorio, transacao, new LimitesProperties(perguntasPorDia, perguntasPorIpPorDia, SAO_PAULO, 1000), relogio);
+                repositorio,
+                transacao,
+                new LimitesProperties(perguntasPorDia, perguntasPorIpPorDia, SAO_PAULO, 1000, tentativasDeLoginPorHora),
+                relogio);
     }
 
     private static String chaveDoIp(String hashHex) {
@@ -183,10 +190,99 @@ class LimiteDiarioServiceTest {
 
     @Test
     void limitesNegativosOuFusoAusenteImpedemOStartup() {
-        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO, 1000)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO, 1000)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, null, 1000)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(-1, 10, SAO_PAULO, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, -1, SAO_PAULO, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, null, 1000, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 0, 10)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LimitesProperties(100, 10, SAO_PAULO, 1000, -1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---- Tentativas de login erradas, por IP e por hora -----------------------------------
+
+    // SHA-256 de '203.0.113.5' (calculado fora do código, como o de cima), na hora 12.
+    private static final String CHAVE_DE_LOGIN_DO_IP_5_NA_HORA_12 = "login-ip:" + SHA256_DE_203_0_113_5 + ":12";
+
+    @Test
+    void aDecimaPrimeiraTentativaErradaNaMesmaHoraEhRecusada() {
+        LimiteDiarioService servico = servico(100, 10, 10);
+        for (int i = 0; i < 10; i++) {
+            servico.reservarTentativaDeLogin("203.0.113.5");
+        }
+
+        assertThatThrownBy(() -> servico.reservarTentativaDeLogin("203.0.113.5"))
+                .isInstanceOfSatisfying(LimiteDiarioExcedidoException.class, e -> {
+                    assertThat(e.assunto()).isEqualTo(LimiteDiarioExcedidoException.Assunto.LOGIN);
+                    assertThat(e.tipo()).isEqualTo(LimiteDiarioExcedidoException.Tipo.IP);
+                });
+        assertThat(repositorio.contagem(DIA_21, CHAVE_DE_LOGIN_DO_IP_5_NA_HORA_12)).as("a recusada não contou").isEqualTo(10);
+    }
+
+    @Test
+    void outroIpNaoEhAfetadoPeloLimiteDeLoginDeUmIp() {
+        LimiteDiarioService servico = servico(100, 10, 2);
+        servico.reservarTentativaDeLogin("203.0.113.5");
+        servico.reservarTentativaDeLogin("203.0.113.5");
+
+        assertThatCode(() -> servico.reservarTentativaDeLogin("198.51.100.7")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aVagaVoltaQuandoAHoraVira() {
+        LimiteDiarioService servico = servico(100, 10, 1);
+        servico.reservarTentativaDeLogin("203.0.113.5");
+        assertThatThrownBy(() -> servico.reservarTentativaDeLogin("203.0.113.5")).isInstanceOf(LimiteDiarioExcedidoException.class);
+
+        // 13:00 em São Paulo (16:00 UTC): outra hora, outra chave.
+        relogio.definir(Instant.parse("2026-10-21T16:00:00Z"));
+
+        assertThatCode(() -> servico.reservarTentativaDeLogin("203.0.113.5")).doesNotThrowAnyException();
+        assertThat(repositorio.chavesDoDia(DIA_21))
+                .containsExactlyInAnyOrder(CHAVE_DE_LOGIN_DO_IP_5_NA_HORA_12, "login-ip:" + SHA256_DE_203_0_113_5 + ":13");
+    }
+
+    @Test
+    void aVagaDeUmLoginCertoVoltaEOutroErradoAindaCabe() {
+        LimiteDiarioService servico = servico(100, 10, 1);
+
+        LimiteDiarioService.TentativaDeLogin vaga = servico.reservarTentativaDeLogin("203.0.113.5");
+        servico.devolverTentativaDeLogin(vaga);
+
+        assertThat(repositorio.contagem(DIA_21, CHAVE_DE_LOGIN_DO_IP_5_NA_HORA_12)).isZero();
+        assertThatCode(() -> servico.reservarTentativaDeLogin("203.0.113.5")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aVagaDevolvidaNaoDeixaAContagemNegativa() {
+        LimiteDiarioService servico = servico(100, 10, 5);
+        LimiteDiarioService.TentativaDeLogin vaga = servico.reservarTentativaDeLogin("203.0.113.5");
+
+        servico.devolverTentativaDeLogin(vaga);
+        servico.devolverTentativaDeLogin(vaga);
+
+        assertThat(repositorio.contagem(DIA_21, CHAVE_DE_LOGIN_DO_IP_5_NA_HORA_12)).isZero();
+    }
+
+    @Test
+    void limiteDeLoginZeroBloqueiaTodasAsTentativas() {
+        assertThatThrownBy(() -> servico(100, 10, 0).reservarTentativaDeLogin("203.0.113.5"))
+                .isInstanceOf(LimiteDiarioExcedidoException.class);
+    }
+
+    @Test
+    void ahoraDaChaveEhADoFusoEDiaTambem() {
+        // 23:30 de 20/10 em São Paulo, já 21/10 em UTC: a vaga é de 20/10, hora 23.
+        relogio.definir(Instant.parse("2026-10-21T02:30:00Z"));
+
+        servico(100, 10, 10).reservarTentativaDeLogin("203.0.113.5");
+
+        assertThat(repositorio.contagem(LocalDate.of(2026, 10, 20), "login-ip:" + SHA256_DE_203_0_113_5 + ":23")).isEqualTo(1);
+    }
+
+    @Test
+    void oIpDoLoginNaoVaiEmTextoParaOBanco() {
+        servico(100, 10, 10).reservarTentativaDeLogin("203.0.113.5");
+
+        assertThat(repositorio.chavesDoDia(DIA_21)).noneMatch(chave -> chave.contains("203.0.113.5"));
     }
 
     /** Mesma semântica do SQL de {@link LimiteDiarioRepository}: limite 0 recusa até a criação, e a contagem não passa do limite. */
@@ -212,6 +308,11 @@ class LimiteDiarioServiceTest {
             }
             contagens.put(dia + "|" + chave, atual + 1);
             return OptionalInt.of(atual + 1);
+        }
+
+        @Override
+        public void decrementar(LocalDate dia, String chave) {
+            contagens.computeIfPresent(dia + "|" + chave, (k, atual) -> Math.max(0, atual - 1));
         }
 
         @Override

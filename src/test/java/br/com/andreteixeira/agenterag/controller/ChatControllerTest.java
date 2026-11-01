@@ -13,11 +13,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import br.com.andreteixeira.agenterag.apoio.RelogioParaFatiaConfig;
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.AutenticacaoService;
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.grafo.EstadoGrafoInvalidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioExcedidoException;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
 import br.com.andreteixeira.agenterag.limite.LimitesProperties;
+import br.com.andreteixeira.agenterag.seguranca.SegurancaConfig;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -31,6 +36,8 @@ import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.exception.TimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
@@ -46,9 +53,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * Cobre só o mapeamento exceção -> HTTP de {@link ChatController} +
@@ -60,6 +69,9 @@ import org.springframework.test.web.servlet.MockMvc;
 // O slice não cria beans de @ConfigurationProperties; os valores de app.demo.limites vêm do
 // application.yml de verdade (tamanho máximo da mensagem: 1000).
 @EnableConfigurationProperties(LimitesProperties.class)
+// A cadeia de segurança de verdade (filtros, rotas, 401/403). O token e a conta da sessão são
+// mocks: SessaoDeTeste faz o cookie valer como a sessão de um USUARIO da BimBam.
+@Import({SegurancaConfig.class, RelogioParaFatiaConfig.class})
 class ChatControllerTest {
 
     @Autowired
@@ -71,13 +83,71 @@ class ChatControllerTest {
     @MockitoBean
     private LimiteDiarioService limiteDiarioService;
 
+    @MockitoBean
+    private TokenService tokenService;
+
+    @MockitoBean
+    private AutenticacaoService autenticacaoService;
+
     private ListAppender<ILoggingEvent> logAppender;
+
+    @BeforeEach
+    void entrar() {
+        SessaoDeTeste.entrarComo(tokenService, autenticacaoService, SessaoDeTeste.usuarioBimbam());
+    }
 
     @BeforeEach
     void attachLogAppender() {
         logAppender = new ListAppender<>();
         logAppender.start();
         ((Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class)).addAppender(logAppender);
+    }
+
+    /** Um {@code POST /api/chat} já com o cookie da sessão. */
+    private static MockHttpServletRequestBuilder postarChat() {
+        return post("/api/chat").cookie(SessaoDeTeste.cookie());
+    }
+
+    // ---- Login obrigatório -----------------------------------------------------------------
+
+    @Test
+    void semLoginORetornoEh401ComMensagemEmPortuguesESemChamarNada() throws Exception {
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.erro").value("É preciso entrar para usar este recurso."));
+
+        verifyNoInteractions(limiteDiarioService, conversaService);
+    }
+
+    @Test
+    void tokenInvalidoOuContaInexistenteEh401() throws Exception {
+        when(tokenService.validar(SessaoDeTeste.TOKEN)).thenReturn(OptionalLong.empty());
+
+        mockMvc.perform(postarChat()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        when(tokenService.validar(SessaoDeTeste.TOKEN)).thenReturn(OptionalLong.of(7));
+        when(autenticacaoService.contaDaSessao(7)).thenReturn(Optional.empty());
+
+        mockMvc.perform(postarChat()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {"threadId":"t1","mensagem":"pergunta","empresaEscolhida":"bimbam"}
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(conversaService);
     }
 
     @AfterEach
@@ -90,7 +160,7 @@ class ChatControllerTest {
         when(conversaService.responder("t1", "mercado-central", "pergunta"))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of("doc — secao"), "mercado-central"));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -108,7 +178,7 @@ class ChatControllerTest {
                 .thenThrow(new IllegalArgumentException(
                         "Empresa 'xyz' não reconhecida. Valores aceitos: [bimbam, mercado-central, santo-pegasus]"));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -125,7 +195,7 @@ class ChatControllerTest {
                 .thenThrow(new IllegalStateException(
                         "Primeira mensagem da conversa precisa informar a empresa — o sistema não adivinha empresa."));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -153,7 +223,7 @@ class ChatControllerTest {
         when(conversaService.responder(anyString(), anyString(), anyString()))
                 .thenThrow(new CompletionException(graphRunnerExceptionSimulada));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -172,7 +242,7 @@ class ChatControllerTest {
         when(conversaService.responder(anyString(), any(), anyString()))
                 .thenThrow(new CompletionException(graphRunnerExceptionSimulada));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -185,7 +255,7 @@ class ChatControllerTest {
 
     @Test
     void mensagemEmBrancoRetorna400SemChamarOServico() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -202,7 +272,7 @@ class ChatControllerTest {
         when(conversaService.responder(anyString(), any(), anyString()))
                 .thenThrow(new EstadoGrafoInvalidoException(mensagemInterna));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -230,7 +300,8 @@ class ChatControllerTest {
      */
     @Test
     void recursoEstaticoInexistenteRetorna404SemLogarComoErro() throws Exception {
-        mockMvc.perform(get("/robots.txt")).andExpect(status().isNotFound());
+        // Logado: sem login, qualquer caminho que não seja público é 401 antes de chegar ao MVC.
+        mockMvc.perform(get("/robots.txt").cookie(SessaoDeTeste.cookie())).andExpect(status().isNotFound());
 
         assertThat(logAppender.list)
                 .as("404 de recurso estático não deve gerar log de erro")
@@ -245,7 +316,7 @@ class ChatControllerTest {
 
     @Test
     void mensagemComMaisDeMilCaracteresRetorna400SemContarNemChamarOGrafo() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMensagem("a".repeat(1001))))
                 .andExpect(status().isBadRequest())
@@ -259,7 +330,7 @@ class ChatControllerTest {
         when(conversaService.responder(anyString(), any(), anyString()))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMensagem("a".repeat(1000))))
                 .andExpect(status().isOk());
@@ -273,7 +344,7 @@ class ChatControllerTest {
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
         // 1000 caracteres com acento, que ocupam 2000 bytes em UTF-8: é aceito.
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMensagem("ã".repeat(1000))))
                 .andExpect(status().isOk());
@@ -287,7 +358,7 @@ class ChatControllerTest {
                 .when(limiteDiarioService)
                 .registrarPergunta(anyString());
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -306,7 +377,7 @@ class ChatControllerTest {
                 .when(limiteDiarioService)
                 .registrarPergunta(anyString());
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -324,7 +395,7 @@ class ChatControllerTest {
         when(conversaService.responder("t1", "bimbam", "pergunta"))
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .with(requisicao -> {
                             requisicao.setRemoteAddr("203.0.113.5");
                             return requisicao;
@@ -346,7 +417,7 @@ class ChatControllerTest {
 
     @Test
     void requisicaoInvalidaNaoContaComoPergunta() throws Exception {
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -362,7 +433,7 @@ class ChatControllerTest {
         when(conversaService.responder(anyString(), any(), anyString()))
                 .thenThrow(new IllegalArgumentException("Empresa 'xyz' não reconhecida."));
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -434,7 +505,7 @@ class ChatControllerTest {
     void limiteOuSaldoDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
         when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -449,7 +520,7 @@ class ChatControllerTest {
     void tempoLimiteDoProvedorRetorna503ComMensagemClara(String caso, RuntimeException erro) throws Exception {
         when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
 
-        mockMvc.perform(post("/api/chat")
+        mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -465,7 +536,7 @@ class ChatControllerTest {
             throws Exception {
         when(conversaService.responder(anyString(), any(), anyString())).thenThrow(erro);
 
-        String corpo = mockMvc.perform(post("/api/chat")
+        String corpo = mockMvc.perform(postarChat()
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """

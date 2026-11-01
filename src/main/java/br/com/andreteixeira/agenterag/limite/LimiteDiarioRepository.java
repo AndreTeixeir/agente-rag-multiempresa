@@ -54,9 +54,23 @@ public class LimiteDiarioRepository {
         return contagem.map(OptionalInt::of).orElseGet(OptionalInt::empty);
     }
 
-    /** Apaga as contagens por IP (chaves {@code ip:*}) de dias anteriores a {@code dia}. */
+    /**
+     * Devolve uma unidade à contagem de {@code chave} no {@code dia}, sem passar de zero. Sem linha
+     * (ou já em zero), não faz nada. Atômico, como o incremento.
+     */
+    public void decrementar(LocalDate dia, String chave) {
+        jdbc.sql("UPDATE limite_diario SET contagem = contagem - 1 WHERE dia = :dia AND chave = :chave AND contagem > 0")
+                .param("dia", dia)
+                .param("chave", chave)
+                .update();
+    }
+
+    /**
+     * Apaga as contagens que carregam o hash de um IP — as chaves {@code ip:*} (perguntas por IP) e
+     * {@code login-ip:*} — de dias anteriores a {@code dia}. O hash do IP não fica guardado além do dia.
+     */
     public int apagarContagensDeIpAnterioresA(LocalDate dia) {
-        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave LIKE 'ip:%'")
+        return jdbc.sql("DELETE FROM limite_diario WHERE dia < :dia AND chave ~ '^(login-)?ip:'")
                 .param("dia", dia)
                 .update();
     }

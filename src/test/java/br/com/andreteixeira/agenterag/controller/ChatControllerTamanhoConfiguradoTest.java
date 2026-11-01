@@ -8,14 +8,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import br.com.andreteixeira.agenterag.apoio.RelogioParaFatiaConfig;
+import br.com.andreteixeira.agenterag.apoio.SessaoDeTeste;
+import br.com.andreteixeira.agenterag.conta.AutenticacaoService;
 import br.com.andreteixeira.agenterag.grafo.ConversaService;
 import br.com.andreteixeira.agenterag.limite.LimiteDiarioService;
 import br.com.andreteixeira.agenterag.limite.LimitesProperties;
+import br.com.andreteixeira.agenterag.seguranca.SegurancaConfig;
+import br.com.andreteixeira.agenterag.seguranca.TokenService;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
         controllers = ChatController.class,
         properties = "app.demo.limites.tamanho-maximo-mensagem=20")
 @EnableConfigurationProperties(LimitesProperties.class)
+@Import({SegurancaConfig.class, RelogioParaFatiaConfig.class})
 class ChatControllerTamanhoConfiguradoTest {
 
     @Autowired
@@ -40,6 +48,17 @@ class ChatControllerTamanhoConfiguradoTest {
     @MockitoBean
     private LimiteDiarioService limiteDiarioService;
 
+    @MockitoBean
+    private TokenService tokenService;
+
+    @MockitoBean
+    private AutenticacaoService autenticacaoService;
+
+    @BeforeEach
+    void entrar() {
+        SessaoDeTeste.entrarComo(tokenService, autenticacaoService, SessaoDeTeste.usuarioBimbam());
+    }
+
     private static String corpoComMensagem(String mensagem) {
         return "{\"threadId\":\"t1\",\"mensagem\":\"" + mensagem + "\",\"empresaEscolhida\":\"bimbam\"}";
     }
@@ -47,6 +66,7 @@ class ChatControllerTamanhoConfiguradoTest {
     @Test
     void oLimiteEOTextoDoErroAcompanhamAConfiguracao() throws Exception {
         mockMvc.perform(post("/api/chat")
+                        .cookie(SessaoDeTeste.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMensagem("a".repeat(21))))
                 .andExpect(status().isBadRequest())
@@ -61,6 +81,7 @@ class ChatControllerTamanhoConfiguradoTest {
                 .thenReturn(new ConversaService.RespostaConversa("resposta", List.of(), "bimbam"));
 
         mockMvc.perform(post("/api/chat")
+                        .cookie(SessaoDeTeste.cookie())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(corpoComMensagem("a".repeat(20))))
                 .andExpect(status().isOk());

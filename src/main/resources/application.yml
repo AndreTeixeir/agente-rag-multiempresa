@@ -40,6 +40,16 @@ management:
       show-details: always
 
 app:
+  auth:
+    # Segredo que assina o token da sessão (JWT HS256). Placeholder explícito: o nome da
+    # variável não segue o relaxed binding desta propriedade. Vazio: o app gera um segredo
+    # aleatório a cada boot e avisa — cômodo no notebook; em produção a variável existe.
+    # Com valor, precisa ter pelo menos 32 bytes (openssl rand -base64 48).
+    jwt-secret: ${APP_AUTH_JWT_SECRET:}
+    # Atributo Secure do cookie da sessão. Desligue (APP_AUTH_COOKIE_SEGURO=false) só para
+    # rodar por http:// fora do localhost; também define o esquema esperado no Origin.
+    cookie-seguro: ${APP_AUTH_COOKIE_SEGURO:true}
+    duracao-da-sessao: 8h
   demo:
     # Proteção do chat público (/api/chat). As perguntas por dia são contadas por pergunta
     # aceita, no Postgres (tabela limite_diario, V4), então sobrevivem a reinício e
@@ -48,6 +58,9 @@ app:
       perguntas-por-dia: 100
       perguntas-por-ip-por-dia: 10
       fuso: America/Sao_Paulo
+      # Logins ERRADOS por IP em cada hora. Passou disso, o login responde 429 até a hora
+      # virar (inclusive com a senha certa); o login certo devolve a vaga.
+      tentativas-de-login-por-ip-por-hora: 10
       # Máximo de caracteres de uma mensagem do chat. Acima disso a API responde 400,
       # sem contar a pergunta e sem chamar o modelo. O index.html repete este valor no
       # maxlength do campo de mensagem — ao mudar um, mude o outro.
