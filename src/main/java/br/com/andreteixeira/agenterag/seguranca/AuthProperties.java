@@ -12,10 +12,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * não para {@code jwt-secret}). Vazio: o app gera um segredo aleatório a cada boot e avisa; com
  * menos de 32 bytes: o app não sobe (ver {@link SegurancaConfig#chaveDoToken}).
  * <p>
- * {@code cookieSeguro} liga o atributo {@code Secure} do cookie — padrão {@code true}. Os
- * navegadores aceitam cookie {@code Secure} em {@code http://localhost}, mas há quem não aceite
- * (Safari, ferramentas de linha de comando): quem roda sem HTTPS desliga com
- * {@code APP_AUTH_COOKIE_SEGURO=false}. A mesma propriedade decide o esquema esperado pela
+ * {@code cookieSeguro} liga o atributo {@code Secure} do cookie — padrão {@code true}. No Chrome
+ * (testado) o cookie {@code Secure} funciona em {@code http://localhost}; outros navegadores e
+ * ferramentas de linha de comando não foram testados. Quem roda sem HTTPS fora do localhost, ou num
+ * cliente que não aceite o cookie assim, desliga com {@code APP_AUTH_COOKIE_SEGURO=false}. A mesma propriedade decide o esquema esperado pela
  * conferência de {@code Origin} (ver {@link OrigemFilter}, que aceita {@code http} e {@code https}
  * no próprio loopback).
  */

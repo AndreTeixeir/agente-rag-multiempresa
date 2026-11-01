@@ -50,10 +50,11 @@ app:
     # aleatório a cada boot e avisa — cômodo no notebook; em produção a variável existe.
     # Com valor, precisa ter pelo menos 32 bytes (openssl rand -base64 48).
     jwt-secret: ${APP_AUTH_JWT_SECRET:}
-    # Atributo Secure do cookie da sessão. Os navegadores aceitam cookie Secure em http://localhost,
-    # então o notebook funciona com o padrão. Desligue (APP_AUTH_COOKIE_SEGURO=false) só para rodar
-    # por http:// fora do localhost (ou num navegador que não aceite, como o Safari). Também define o
-    # esquema esperado na conferência do Origin — que aceita http e https no próprio loopback.
+    # Atributo Secure do cookie da sessão. No Chrome (testado) o cookie Secure funciona em
+    # http://localhost, então o notebook roda com o padrão. Desligue (APP_AUTH_COOKIE_SEGURO=false)
+    # para rodar por http:// fora do localhost, ou num cliente que não aceite o cookie Secure em
+    # http (outros navegadores e ferramentas de linha de comando não foram testados). Também define
+    # o esquema esperado na conferência do Origin — que aceita http e https no próprio loopback.
     cookie-seguro: ${APP_AUTH_COOKIE_SEGURO:true}
     duracao-da-sessao: 8h
   superadmin:

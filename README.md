@@ -8,7 +8,8 @@ diferentes recupera documentos diferentes e produz respostas diferentes.
 
 Projeto do **Challenge RAG — Alura / Oracle ONE (Tech AI Builder)**.
 
-🔗 **Aplicação no ar:** https://andreteixeira.dev.br
+🔗 **Aplicação no ar:** https://andreteixeira.dev.br — abre na tela de login; o balão **?** no canto
+mostra as contas de demonstração (ver [Login e papéis](#login-e-papéis)).
 
 O nome vem do sabiá — pássaro brasileiro conhecido pelo canto, com "IA" no meio e um aceno
 a "sábio". A interface aceita pergunta por voz, o que fecha o trocadilho.
@@ -88,10 +89,11 @@ entre perguntas com resposta real foi `0.7201`.
 | Orquestração de LLM | LangChain4j 1.18.1 |
 | Grafo de estado | LangGraph4j 1.9.0-beta2 (`langgraph4j-core` + `langgraph4j-postgres-saver`) |
 | Banco vetorial | PostgreSQL 16 + pgvector |
-| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints, `V4` limites diários) |
+| Migrações | Flyway (`V1` chunks, `V2` chunks recursivo, `V3` checkpoints, `V4` limites diários, `V5` contas) |
 | Embeddings | `gemini-embedding-001`, 768 dimensões, normalização L2 manual |
 | Geração | Sabiazinho-4 (`sabiazinho-4`), da Maritaca, pela API compatível com a OpenAI |
 | Interface | HTML/JS estático servido pelo próprio Spring Boot |
+| Login | Spring Security 7.1.0; sessão por cookie com JWT HS256 (`spring-security-oauth2-jose`, Nimbus 10.9); senhas com BCrypt |
 | Entrada por voz | Web Speech API (`SpeechRecognition`), `pt-BR` |
 | Testes | JUnit 5, AssertJ, Mockito, Testcontainers |
 | CI | GitHub Actions — `./mvnw test` em todo push e pull request |
@@ -161,7 +163,10 @@ cerca de 15 minutos, e isso é esperado.
 ./mvnw spring-boot:run
 ```
 
-Interface em `http://localhost:8080`, health em `/health`.
+Interface em `http://localhost:8080`, health em `/health`. A página abre na tela de login: use uma
+das contas de demonstração (ver [Login e papéis](#login-e-papéis)). Sem `APP_AUTH_JWT_SECRET`, o
+aplicativo gera um segredo aleatório a cada boot e avisa no log — cômodo no notebook; as sessões
+deixam de valer a cada reinício.
 
 ### Variáveis de ambiente
 
@@ -173,6 +178,10 @@ Interface em `http://localhost:8080`, health em `/health`.
 | `DB_USERNAME` | `rag` | |
 | `DB_PASSWORD` | `rag` | |
 | `SERVER_PORT` | `8080` | em produção, `8000` via systemd |
+| `APP_AUTH_JWT_SECRET` | gerado ao acaso a cada boot, com aviso | segredo que assina o token da sessão; **em produção, defina**. Pelo menos 32 bytes (o app não sobe com menos); por exemplo, `openssl rand -base64 48` |
+| `APP_AUTH_COOKIE_SEGURO` | `true` | atributo `Secure` do cookie. No Chrome ele funciona em `http://localhost`; para rodar por `http://` fora do localhost, ou num cliente que não o aceite, use `false` |
+| `APP_SUPERADMIN_USUARIO` | — | usuário do superadmin real (ver [O superadmin real](#o-superadmin-real)). Só vale junto com a senha |
+| `APP_SUPERADMIN_SENHA` | — | senha do superadmin real: de 8 caracteres a 72 bytes. Nunca vai para o log |
 
 ### Perfil alternativo de chunking
 
@@ -185,25 +194,157 @@ Existe para tornar a decisão de chunking mensurável, não teórica — ver se�
 
 ---
 
+## Login e papéis
+
+O chat exige login. Cada conta tem um papel, e o papel decide o que ela alcança:
+
+| Papel | Chat | Administração de contas |
+|---|---|---|
+| `USUARIO` | só a empresa da conta | nenhuma |
+| `ADMIN` | só a empresa da conta | lista, cria e exclui usuários comuns da **própria** empresa. Não cria administrador e não escolhe a empresa: o servidor força o papel (usuário) e a empresa ao criar |
+| `SUPERADMIN` de demonstração | qualquer empresa | lista todas as contas (menos o superadmin real); cria administradores e usuários em qualquer empresa (pode haver vários administradores por empresa); exclui as contas que não são protegidas |
+| `SUPERADMIN` real | qualquer empresa | o mesmo, sem a trava das contas que ele mesmo criou, e fora dos limites de perguntas e de cadastros |
+
+**Contas protegidas** são as que as contas de demonstração não alteram nem excluem: as 7 semeadas,
+o superadmin real e as criadas por ele. Ninguém exclui as semeadas (fazem parte da demo, e o reset
+não as recria), o superadmin real nem a si mesmo. Só o `SUPERADMIN` exclui administradores. As contas
+criadas pelo superadmin real, só ele exclui.
+
+### Contas de demonstração
+
+Criadas pela migração `V5`. A senha de todas é pública: **`sabia-demo`**.
+
+| Usuário | Papel | Empresa |
+|---|---|---|
+| `superadmin.demo` | `SUPERADMIN` | todas |
+| `admin.bimbam` | `ADMIN` | BimBam Buy |
+| `usuario.bimbam` | `USUARIO` | BimBam Buy |
+| `admin.mercadocentral` | `ADMIN` | Mercado Central 24h |
+| `usuario.mercadocentral` | `USUARIO` | Mercado Central 24h |
+| `admin.santopegasus` | `ADMIN` | Santo Pegasus |
+| `usuario.santopegasus` | `USUARIO` | Santo Pegasus |
+
+### O balão de ajuda
+
+Um botão **?** fixo no canto, em todas as telas. Na tela de login ele mostra as 7 contas em cartões,
+com usuário, senha e um botão **Entrar** (que preenche os campos e envia), e um guia curto: escolher
+a conta, perguntar, cadastrar um usuário como administrador e entrar com ele, o que o superadmin vê,
+os limites e o reset. Depois do login ele explica o que o papel da conta pode fazer e oferece
+**Trocar de conta**. Abre sozinho na primeira visita; depois fica fechado até o clique (a marca fica
+no `localStorage`, e a página funciona igual se ele não estiver disponível).
+
+### Reset diário
+
+À meia-noite de `America/Sao_Paulo`, o mesmo fuso dos limites, a aplicação apaga as contas que não
+são semeadas, não são o superadmin real e não foram criadas por ele, e **todas** as conversas, e
+registra no log uma linha com as contagens. Quem estava com uma conversa aberta continua: a próxima
+mensagem começa uma conversa nova, sem erro (o `PostgresSaver` do LangGraph4j 1.9.0-beta2 não guarda
+nada das conversas em memória — conferido no código da biblioteca —, então apagar as linhas basta).
+
+Se o aplicativo estava fora do ar à meia-noite, o reset roda no primeiro boot do dia: cada execução
+reivindica o dia com uma linha `reset-diario` em `limite_diario`, inserida de forma atômica, então ele
+roda uma vez por dia mesmo com reinícios ou mais de uma instância. A reivindicação e o apagar são uma
+transação só.
+
+### Rotas
+
+| Método | Caminho | Quem |
+|---|---|---|
+| `POST` | `/api/auth/login` | público (10 erradas por IP por hora, depois 429) |
+| `POST` | `/api/auth/logout` | público; apaga o cookie |
+| `GET` | `/api/auth/eu` | qualquer conta logada |
+| `POST` | `/api/chat` | qualquer conta logada |
+| `GET` | `/api/contas` | `ADMIN`, `SUPERADMIN` |
+| `POST` | `/api/contas` | `ADMIN`, `SUPERADMIN` — 201 |
+| `DELETE` | `/api/contas/{id}` | `ADMIN`, `SUPERADMIN` |
+| `POST` | `/api/admin/ingest` | só no perfil `dev`, e só `SUPERADMIN` |
+| `GET` | `/`, arquivos estáticos, `/health`, `/actuator/health` | público |
+
+Todo o resto responde 401 sem login. Os erros têm o formato `{"erro": "..."}`, com mensagem em
+português: 401 sem login ou com token inválido ou vencido, 403 quando o papel não permite, 404 para
+uma conta que quem pediu não enxerga (de outra empresa, ou o superadmin real).
+
+### Decisões de segurança
+
+- **Senhas com BCrypt.** O hash fica no banco; a senha nunca é gravada nem vai para o log. Senha nova:
+  de 8 caracteres a 72 bytes (o BCrypt só considera os 72 primeiros). Usuário inexistente também roda
+  a conferência do BCrypt, e a mensagem de erro é a mesma para usuário inexistente e senha errada.
+- **Cookie `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, 8 horas, sem `Domain`.** O JavaScript da
+  página não o lê. Com `Secure`, o nome é `__Host-sabia-sessao`: o prefixo `__Host-` impede um
+  subdomínio irmão de plantar um cookie com esse nome para o domínio todo.
+- **Token JWT HS256 com só o id da conta.** Emissor, `iat` e `exp` obrigatório; token com outro
+  algoritmo (inclusive sem assinatura), outro emissor ou sem validade é recusado. O papel e a empresa
+  **não** vão no token: a conta é lida do banco a cada requisição, então excluir uma conta, ou o reset,
+  encerra a sessão dela na hora. O segredo vem de `APP_AUTH_JWT_SECRET`.
+- **Barreira de CSRF: conferência do `Origin`.** Em `POST`, `PUT`, `PATCH` e `DELETE`, se o navegador
+  mandou `Origin`, ele precisa ser o do próprio site, senão 403. O `SameSite=Strict` sozinho não
+  bastaria: `sentiment.andreteixeira.dev.br` roda na mesma VM e é do mesmo *site* que
+  `andreteixeira.dev.br`, e uma página de lá consegue mandar uma requisição com o cookie, mas o `Origin`
+  dela é outro. Vale também para o login (*login CSRF*). Sem `Origin` a requisição passa, porque os
+  navegadores o mandam nessas requisições e a ausência indica um cliente sem navegador (curl, teste);
+  o esquema esperado vem de `APP_AUTH_COOKIE_SEGURO`, exceto no próprio loopback, onde `http` e
+  `https` valem (é como se roda no notebook). Escolhi isto em vez do token CSRF do Spring porque o
+  front é uma página estática: o token exigiria ler o cookie no JavaScript, uma requisição de partida
+  para semeá-lo e um login que o recebe antes de existir sessão.
+- **A conversa é presa à conta.** No grafo, ela se chama `<id da conta>:<threadId>`: uma conta nunca
+  alcança a conversa de outra, mesmo sabendo o `threadId` dela. O `threadId` é validado (1 a 64 letras,
+  números, hífen ou sublinhado).
+- **A empresa vem da conta.** Para `USUARIO` e `ADMIN`, o `empresaEscolhida` que vier no corpo é
+  ignorado. Só o `SUPERADMIN` escolhe a empresa, e a interface dele manda a empresa em toda mensagem.
+- **Papel por rota, regra fina no serviço.** As rotas de administração exigem o papel na cadeia de
+  filtros; o que cada um pode fazer com cada conta é decidido num só lugar, e a mesma decisão alimenta o
+  `podeExcluir` da listagem e a recusa do `DELETE`. Não uso `@PreAuthorize`: o
+  `@ExceptionHandler(Exception.class)` do projeto engoliria o `AccessDeniedException` e responderia 500.
+
+### O superadmin real
+
+Existe uma conta de superadmin real, que **não** faz parte da demonstração e não está liberada para
+uso público. Ela é criada (ou atualizada) no boot a partir de `APP_SUPERADMIN_USUARIO` e
+`APP_SUPERADMIN_SENHA`, definidas só no servidor, e nunca aparece em listagem nem na interface (o nome
+dela vem mascarado como `superadmin` nas respostas do login). Sem as duas variáveis ela não existe, e o
+log diz isso numa linha, sem nome nem senha; com valores inválidos, o log registra o erro, sem os
+valores, e a aplicação segue sem ela. Uma linha deixada por um boot anterior não entra enquanto as
+variáveis não estiverem definidas.
+
+### Limitações conhecidas
+
+- O logout apaga o cookie, mas o token em si não é revogado: se alguém o tiver copiado, ele vale até
+  vencer (8 horas). O cookie `HttpOnly` reduz esse risco; não há lista de revogação.
+- O cookie `Secure` em `http://localhost` foi testado no Chrome. Outros navegadores e ferramentas de
+  linha de comando não foram testados (ver `APP_AUTH_COOKIE_SEGURO`).
+- A conferência do BCrypt também roda para usuário inexistente, para a resposta demorar o mesmo; o
+  tempo não foi medido.
+
+---
+
 ## Limites da demo
 
-O chat é público, e cada pergunta custa uma ou duas chamadas ao modelo (duas a partir da
-segunda pergunta de uma conversa, por causa da reescrita de consulta). Por isso a demo tem
-limites, todos em `app.demo.limites`, no `application.yml`:
+A demo é aberta — as contas de demonstração têm senha pública —, e cada pergunta custa uma ou duas
+chamadas ao modelo (duas a partir da segunda pergunta de uma conversa, por causa da reescrita de
+consulta). Por isso a demo tem limites, todos em `app.demo.limites`, no `application.yml`. Valem para
+todas as contas, **exceto o superadmin real** (nos de perguntas e de cadastros):
 
 | Limite | Valor |
 |---|---|
 | Perguntas por dia, somando todo mundo | 100 |
 | Perguntas por dia, por IP | 10 |
 | Tamanho de cada mensagem | 1.000 caracteres |
+| Contas criadas pela administração, por dia, no total | 50 |
+| Contas criadas pela administração, por dia, por IP | 5 |
+| Logins errados, por IP, em cada hora | 10 |
 
 O que acontece quando um limite acaba. A interface mostra a mensagem como um aviso dentro da
-conversa (429 e 503) ou no banner de erro acima dela (400), e a conversa continua funcionando:
+conversa (429, 503 e 403), no formulário de login ou de contas, ou no banner de erro acima da
+conversa (400), e a conversa continua funcionando:
 
 | Situação | Resposta | Mensagem |
 |---|---|---|
 | As 100 perguntas do dia acabaram | HTTP 429 | A demo atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
 | As 10 perguntas do IP acabaram | HTTP 429 | Você atingiu o limite de perguntas de hoje. Ele volta à meia-noite (horário de Brasília). |
+| Os 50 cadastros do dia acabaram | HTTP 429 | A demo atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília). |
+| Os 5 cadastros do IP acabaram | HTTP 429 | Você atingiu o limite de cadastros de hoje. Ele volta à meia-noite (horário de Brasília). |
+| 10 logins errados do IP na mesma hora | HTTP 429 | Muitas tentativas de login erradas. Tente novamente na próxima hora. |
+| Usuário ou senha que não conferem | HTTP 401 | Usuário ou senha inválidos. |
 | Mensagem com mais de 1.000 caracteres | HTTP 400 | A mensagem pode ter no máximo 1000 caracteres. |
 | O provedor do modelo recusou por limite de uso ou saldo | HTTP 503 | O assistente atingiu o limite de uso no momento. Tente novamente mais tarde. |
 | O provedor do modelo não respondeu no tempo limite (30 s por tentativa, com uma nova tentativa) | HTTP 503 | O assistente demorou demais para responder. Tente novamente. |
@@ -216,8 +357,15 @@ Como a contagem funciona:
   incremento é um único `INSERT ... ON CONFLICT DO UPDATE`, atômico com requisições
   simultâneas.
 - **O dia vira à meia-noite de `America/Sao_Paulo`.**
-- **O IP não é gravado em texto**, só o hash SHA-256. As contagens por IP de dias anteriores
-  são apagadas; as do total ficam 7 dias.
+- **O IP não é gravado em texto**, só o hash SHA-256. As contagens com hash de IP de dias anteriores
+  (perguntas, cadastros e tentativas de login) são apagadas; as do total ficam 7 dias.
+- **Cadastros** seguem a regra das perguntas (total e IP na mesma transação; recusar pelo IP desfaz o
+  total), e excluir uma conta **não** devolve a vaga. A recusa por validação (usuário em uso, senha
+  curta) não gasta vaga.
+- **Tentativas de login:** a vaga é reservada de forma atômica *antes* de a senha ser conferida —
+  então tentativas em paralelo não passam de 10 — e devolvida se o login der certo: só as erradas
+  consomem o limite. A chave leva o hash do IP e a hora (`login-ip:<sha256>:<hora>`). Depois das 10
+  erradas, nem a senha certa entra até a hora virar.
 - **O IP vem do `X-Forwarded-For`**, enviado pelo Caddy, por
   `server.forward-headers-strategy: native`. O Tomcat só aceita o cabeçalho quando a conexão
   vem de um proxy interno (loopback e as faixas privadas, por padrão), então quem chegar direto
@@ -234,7 +382,7 @@ Como a contagem funciona:
 ./mvnw test
 ```
 
-80 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
+396 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
 
 Os mesmos testes rodam no GitHub Actions a cada push e pull request
 (`.github/workflows/ci.yml`, Java 21 Temurin), sem Postgres local e sem chaves reais — por
@@ -285,6 +433,36 @@ modelo — nenhuma chamada paga. Existem porque um teste com o serviço mockado 
 `CompiledGraph` faz com as exceções (embrulha tudo em `CompletionException`): o mock lança a
 exceção direto. O segundo cobre o incremento concorrente, o rollback do total quando o limite
 por IP recusa, a retenção, a virada do dia e a leitura do `X-Forwarded-For`.
+
+### Login, contas e reset, contra a aplicação inteira
+
+As classes novas de integração compartilham um Postgres em container (uma vez por execução) e usam o
+mesmo servidor falso no lugar do modelo — nenhuma chamada paga:
+
+- `AcessoMatrizIntegrationTest` — a **matriz de acesso**: cada rota nova e o `/api/chat` contra os cinco
+  perfis (sem login, `USUARIO`, `ADMIN`, superadmin de demonstração e superadmin real), cada combinação
+  com o status esperado, e as regras de exclusão (conta protegida, a si mesmo, o superadmin real, outra
+  empresa, administrador).
+- `AuthIntegrationTest`, `TokenServiceTest`, `SessaoCookieTest`, `OrigemFilterTest` — o login com as 7
+  contas, a mesma resposta para usuário inexistente e senha errada, as 10 tentativas por hora (com
+  relógio injetado e em paralelo), o token (assinatura, algoritmo, emissor, expiração, `exp`
+  obrigatório), os atributos do cookie e a barreira do `Origin`, inclusive com o `Host` e o loopback.
+- `ChatPorContaIntegrationTest` — duas contas com o mesmo `threadId` não alcançam a conversa uma da
+  outra (provado pelas chamadas ao modelo: a primeira pergunta de uma conversa faz uma, a segunda faz
+  duas), e a empresa vem da conta.
+- `ContaAdministracaoIntegrationTest`, `CadastroLimitesIntegrationTest` — criar, listar e excluir, as
+  validações, o teto de 5 por IP e 50 por dia (inclusive em paralelo, na virada do dia e com o
+  superadmin real de fora).
+- `ResetDiarioIntegrationTest` — o que o reset apaga e o que mantém, que roda uma vez por dia, a
+  meia-noite de São Paulo, a falha que desfaz tudo, e a conversa que continua sem erro depois do reset.
+- `SuperadminRealIntegrationTest` — criado pelas variáveis, ausente sem elas, fora das listagens e dos
+  limites.
+- `ContasMigracaoTest` — a `V5` num banco zerado: as 7 contas semeadas, os hashes conferem com a senha
+  pública e as restrições do banco.
+
+A página foi conferida num Chrome de verdade, comandado pelo protocolo de depuração, contra a
+aplicação rodando no notebook: login, papéis, contas, balão, sessão que acaba e `localStorage`
+indisponível. Isso não faz parte do `./mvnw test`, e o roteiro dessa conferência não está versionado.
 
 ---
 
@@ -551,7 +729,8 @@ não recupera nada útil.
 
 ## A aplicação em funcionamento
 
-Capturas de `https://andreteixeira.dev.br`, em 23/08/2026.
+Capturas de `https://andreteixeira.dev.br`, em 23/08/2026 — anteriores ao login: hoje a página abre
+na tela de login (ver [Login e papéis](#login-e-papéis)).
 
 ### Resposta com fontes citadas
 
@@ -598,8 +777,9 @@ entrada por voz, que só funciona sob HTTPS por exigência da Web Speech API.
 
 A aplicação escuta só no loopback (`127.0.0.1:8000`, pelo `SERVER_ADDRESS` do
 `deploy/sabia.service`), e quem a chama é o Caddy, na mesma VM; para fora, só 80 e 443 estão
-abertas, e as regras de firewall estão persistidas em disco. Chaves de API e senha do banco vêm
-por `EnvironmentFile`, nunca do repositório.
+abertas, e as regras de firewall estão persistidas em disco. Chaves de API, senha do banco e as variáveis do login
+(`APP_AUTH_JWT_SECRET`, `APP_SUPERADMIN_USUARIO`, `APP_SUPERADMIN_SENHA`) vêm por `EnvironmentFile`,
+nunca do repositório.
 
 ### Comprovação de que a infraestrutura é OCI
 
@@ -637,8 +817,8 @@ processamento e não funciona offline.
 **Limitação conhecida:** nomes próprios inventados (BimBam, Santo Pegasus) são transcritos
 incorretamente com frequência. Não há solução pela API — o conceito de gramática foi
 removido da Web Speech API, então não é possível ensinar vocabulário ao reconhecedor. Na
-prática isso não atrapalha: a empresa vem do seletor e é parâmetro obrigatório da busca, de
-modo que o nome falado entra apenas como ruído no embedding.
+prática isso não atrapalha: a empresa vem da conta (ou do seletor, para o superadmin) e é
+parâmetro obrigatório da busca, de modo que o nome falado entra apenas como ruído no embedding.
 
 ---
 

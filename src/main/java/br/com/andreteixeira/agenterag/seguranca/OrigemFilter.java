@@ -29,8 +29,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *     {@code [::1]}), {@code http} e {@code https} valem — é como se roda no notebook, por
  *     {@code http://localhost}, com o padrão de {@code Secure} ligado (os navegadores aceitam o cookie
  *     {@code Secure} no localhost). Em produção o host nunca é loopback, e o esquema continua estrito.</li>
- *     <li>Sem {@code Origin} a requisição passa: todo navegador manda {@code Origin} em requisição
- *     que muda estado, então a ausência significa um cliente que não é navegador (curl, teste) —
+ *     <li>Sem {@code Origin} a requisição passa: os navegadores mandam {@code Origin} em requisição
+ *     que muda estado, então a ausência indica um cliente que não é navegador (curl, teste) —
  *     que não tem cookie de navegador a explorar.</li>
  *     <li>{@code Origin: null} (contextos opacos, como iframe isolado) é recusado: não é o site.</li>
  * </ul>
