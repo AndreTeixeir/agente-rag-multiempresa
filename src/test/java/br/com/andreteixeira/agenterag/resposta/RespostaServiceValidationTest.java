@@ -83,7 +83,9 @@ class RespostaServiceValidationTest {
                 "bimbam",
                 "Qual o CNPJ da BimBam Buy?");
         assertThat(cnpj.texto()).isNotBlank();
-        assertThat(cnpj.fontes()).as("passou a comporta 1, então recuperou fontes reais").isNotEmpty();
+        assertThat(cnpj.fontes())
+                .as("passou a comporta 1 e o modelo admitiu ausência: a recusa sai sem lista de fontes")
+                .isEmpty();
     }
 
     private RespostaService.Resposta caso(String rotulo, String empresa, String pergunta) {

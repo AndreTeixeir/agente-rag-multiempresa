@@ -8,6 +8,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,19 @@ import org.springframework.stereotype.Service;
  *     comentário em {@code application.yml}: casos sem resposta real podem
  *     ficar acima do limiar por serem topicamente relacionados).</li>
  * </ol>
+ * <p>
+ * <b>Fontes numa recusa.</b> Quando não há resposta, não há o que citar: nas duas
+ * comportas a {@link Resposta} sai com a lista de fontes vazia. Na comporta 1 isso
+ * é direto (nada foi recuperado). Na comporta 2 a busca recuperou trechos, mas o
+ * modelo disse que eles não têm a informação — listá-los como "Fontes" sugeriria
+ * que sustentam uma resposta que não existe. O texto do modelo não é alterado.
+ * <p>
+ * A comporta 2 é reconhecida pelo texto devolvido ({@code ehAdmissaoDeAusencia}),
+ * sem mexer no prompt, e a regra erra para o lado de manter as fontes: só é
+ * recusa o texto que começa com "Não encontrei essa informação" e não cita
+ * nenhuma fonte. Uma recusa com outra redação, ou que cite fonte, continua saindo
+ * com as fontes recuperadas — mostrar uma fonte a mais é preferível a esconder a
+ * fonte de uma resposta de verdade.
  */
 @Service
 public class RespostaService {
@@ -61,6 +75,12 @@ public class RespostaService {
 
     private static final String SEM_CONTEXTO_SUFICIENTE =
             "Não encontrei essa informação nos documentos disponíveis para responder com segurança.";
+
+    /** Como o modelo começa a resposta quando admite que o contexto não tem a informação (regra 2 do prompt). */
+    private static final String INICIO_DA_ADMISSAO_DE_AUSENCIA = "Não encontrei essa informação";
+
+    /** Marca da citação pedida pela regra 3 do prompt: {@code (Fonte: <documento> — <seção>)}. */
+    private static final String MARCA_DE_CITACAO = "Fonte:";
 
     private final EmbeddingProvider embeddingProvider;
     private final VectorStore vectorStore;
@@ -97,9 +117,39 @@ public class RespostaService {
                 SystemMessage.from(PROMPT_SISTEMA), UserMessage.from("CONTEXTO:\n" + contexto + "\nPERGUNTA: " + pergunta));
 
         String texto = chatResponse.aiMessage().text();
-        List<Fonte> fontes = extrairFontes(resultados);
 
-        return new Resposta(texto, fontes);
+        if (ehAdmissaoDeAusencia(texto)) {
+            log.info(
+                    "empresa={} pergunta=\"{}\" -> o modelo admitiu ausência da informação — resposta sem lista de fontes",
+                    empresa, pergunta);
+            return new Resposta(texto, List.of());
+        }
+
+        return new Resposta(texto, extrairFontes(resultados));
+    }
+
+    /**
+     * Regra da comporta 2: o modelo admitiu que o contexto não tem a informação?
+     * Determinística e conservadora — na dúvida devolve {@code false}, e a resposta
+     * mantém as fontes.
+     * <ul>
+     *     <li>texto que cita fonte ({@value #MARCA_DE_CITACAO}, em qualquer caixa) nunca é
+     *     recusa, mesmo que comece como uma;</li>
+     *     <li>é recusa o texto que, sem espaços nas pontas e sem diferenciar maiúsculas,
+     *     começa com "{@value #INICIO_DA_ADMISSAO_DE_AUSENCIA}";</li>
+     *     <li>qualquer outro texto (inclusive uma recusa com outra redação) não é recusa.</li>
+     * </ul>
+     */
+    private static boolean ehAdmissaoDeAusencia(String texto) {
+        if (texto == null) {
+            return false;
+        }
+        String semEspacosNasPontas = texto.strip();
+        if (semEspacosNasPontas.toLowerCase(Locale.ROOT).contains(MARCA_DE_CITACAO.toLowerCase(Locale.ROOT))) {
+            return false;
+        }
+        return semEspacosNasPontas.regionMatches(
+                true, 0, INICIO_DA_ADMISSAO_DE_AUSENCIA, 0, INICIO_DA_ADMISSAO_DE_AUSENCIA.length());
     }
 
     private String montarContexto(List<VectorStore.SearchResult> resultados) {
@@ -128,6 +178,10 @@ public class RespostaService {
         return List.copyOf(fontes);
     }
 
+    /**
+     * @param fontes fontes dos trechos recuperados, sem repetição e na ordem da busca; vazia
+     *               quando a resposta é uma admissão de ausência (nas duas comportas)
+     */
     public record Resposta(String texto, List<Fonte> fontes) {
     }
 
