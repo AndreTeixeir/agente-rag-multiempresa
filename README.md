@@ -142,10 +142,11 @@ chmod 600 .env
 
 O `.env` é carregado por `spring.config.import: optional:file:.env[.properties]`. **O
 sufixo `[.properties]` é obrigatório** — sem ele o Spring não reconhece a extensão, ignora
-o arquivo em silêncio e a chave chega ao Google como o literal `${GEMINI_API_KEY}`.
+o arquivo em silêncio e as chaves não chegam à aplicação.
 
-O mesmo vale para uma variável ausente: o boot não falha, e a chave chega à API como o literal
-`${MARITACA_API_KEY}` — as perguntas deixam de ser respondidas, sem erro na subida.
+As duas chaves são obrigatórias. Se `GEMINI_API_KEY` ou `MARITACA_API_KEY` estiver ausente, em
+branco ou sem resolver, a aplicação não sobe: a subida falha com uma mensagem que cita o nome da
+variável que falta (nunca o valor).
 
 ### 3. Ingestão
 
@@ -177,8 +178,8 @@ deixam de valer a cada reinício.
 
 | Variável | Default | Observação |
 |---|---|---|
-| `GEMINI_API_KEY` | — | obrigatória — embeddings |
-| `MARITACA_API_KEY` | — | obrigatória — geração das respostas |
+| `GEMINI_API_KEY` | — | obrigatória — embeddings; sem ela a aplicação não sobe |
+| `MARITACA_API_KEY` | — | obrigatória — geração das respostas; sem ela a aplicação não sobe |
 | `DB_URL` | `jdbc:postgresql://localhost:5434/agenterag` | |
 | `DB_USERNAME` | `rag` | |
 | `DB_PASSWORD` | `rag` | |
