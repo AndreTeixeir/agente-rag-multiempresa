@@ -83,9 +83,15 @@ class RespostaServiceValidationTest {
                 "bimbam",
                 "Qual o CNPJ da BimBam Buy?");
         assertThat(cnpj.texto()).isNotBlank();
-        assertThat(cnpj.fontes())
-                .as("passou a comporta 1 e o modelo admitiu ausência: a recusa sai sem lista de fontes")
-                .isEmpty();
+        // Sem asserção sobre as fontes, de propósito: a redação da recusa varia entre execuções do
+        // modelo real (a frase padrão ou outra, com ou sem citação), e a regra das fontes na recusa
+        // é coberta de forma determinística pelo RespostaServiceTest. O que este caso prova é que o
+        // modelo admite a ausência em vez de inventar um número: o texto não traz nada em formato
+        // de CNPJ, nem formatado nem com 14 dígitos seguidos.
+        assertThat(cnpj.texto())
+                .as("o modelo deve admitir a ausência, não inventar um CNPJ")
+                .doesNotContainPattern("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}")
+                .doesNotContainPattern("\\d{14}");
     }
 
     private RespostaService.Resposta caso(String rotulo, String empresa, String pergunta) {
