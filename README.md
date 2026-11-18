@@ -73,6 +73,11 @@ O sistema recusa em dois pontos distintos, e isso é intencional:
    relacionado mas não contém o fato pedido, o limiar sozinho deixa passar. O prompt exige
    que o modelo admita ausência em vez de completar a lacuna.
 
+Nas duas comportas a recusa vai **sem lista de fontes**: quando não há resposta, não há o
+que citar. Na comporta 2 o servidor reconhece a admissão pelo texto do modelo (começa com
+"Não encontrei essa informação" e não cita fonte); uma recusa escrita de outro jeito continua
+saindo com as fontes recuperadas — na dúvida, a fonte fica.
+
 A comporta 2 existe porque a separação por limiar **não é limpa**. Perguntar o CNPJ da
 BimBam recupera chunks de pagamento e logística com score `0.7759` — acima do limiar, e
 ainda assim sem a resposta. Um limiar mais alto barraria fatos legítimos: o menor score
@@ -137,10 +142,11 @@ chmod 600 .env
 
 O `.env` é carregado por `spring.config.import: optional:file:.env[.properties]`. **O
 sufixo `[.properties]` é obrigatório** — sem ele o Spring não reconhece a extensão, ignora
-o arquivo em silêncio e a chave chega ao Google como o literal `${GEMINI_API_KEY}`.
+o arquivo em silêncio e as chaves não chegam à aplicação.
 
-O mesmo vale para uma variável ausente: o boot não falha, e a chave chega à API como o literal
-`${MARITACA_API_KEY}` — as perguntas deixam de ser respondidas, sem erro na subida.
+As duas chaves são obrigatórias. Se `GEMINI_API_KEY` ou `MARITACA_API_KEY` estiver ausente, em
+branco ou sem resolver, a aplicação não sobe: a subida falha com uma mensagem que cita o nome da
+variável que falta (nunca o valor).
 
 ### 3. Ingestão
 
@@ -172,8 +178,8 @@ deixam de valer a cada reinício.
 
 | Variável | Default | Observação |
 |---|---|---|
-| `GEMINI_API_KEY` | — | obrigatória — embeddings |
-| `MARITACA_API_KEY` | — | obrigatória — geração das respostas |
+| `GEMINI_API_KEY` | — | obrigatória — embeddings; sem ela a aplicação não sobe |
+| `MARITACA_API_KEY` | — | obrigatória — geração das respostas; sem ela a aplicação não sobe |
 | `DB_URL` | `jdbc:postgresql://localhost:5434/agenterag` | |
 | `DB_USERNAME` | `rag` | |
 | `DB_PASSWORD` | `rag` | |

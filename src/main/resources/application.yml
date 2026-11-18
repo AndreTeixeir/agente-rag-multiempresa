@@ -41,7 +41,9 @@ server:
 management:
   endpoint:
     health:
-      show-details: always
+      # O /actuator/health é público (sonda de saúde sem login). Com "always" o corpo trazia o
+      # caminho da aplicação no servidor e dados de disco; com "never" traz só o status.
+      show-details: never
 
 app:
   auth:

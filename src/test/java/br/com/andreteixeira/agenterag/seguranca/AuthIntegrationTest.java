@@ -271,11 +271,38 @@ class AuthIntegrationTest {
         assertThat(get("/actuator/health", null).statusCode()).isEqualTo(200);
     }
 
+    /**
+     * O endpoint é público (a sonda de saúde não tem login), então o corpo não pode trazer detalhes
+     * internos: nem os componentes, nem o disco, nem o caminho da aplicação no servidor. Além do
+     * {@code status}, o Spring Boot acrescenta {@code groups} (só os nomes dos grupos de sonda,
+     * "liveness" e "readiness", sem nenhum dado); qualquer outro campo faz o teste falhar.
+     */
+    @Test
+    void oHealthDoActuatorNaoExpoeDetalhesInternos() throws Exception {
+        HttpResponse<String> health = get("/actuator/health", null);
+
+        assertThat(health.statusCode()).isEqualTo(200);
+        JsonNode corpo = JSON.readTree(health.body());
+        assertThat(corpo.get("status").asText()).isEqualTo("UP");
+        List<String> campos = new ArrayList<>();
+        corpo.fieldNames().forEachRemaining(campos::add);
+        assertThat(campos)
+                .as("campos do corpo do health; corpo recebido: %s", health.body())
+                .contains("status")
+                .isSubsetOf("status", "groups");
+        assertThat(health.body())
+                .doesNotContain("components", "diskSpace", "path", "total", "free", "threshold")
+                .doesNotContain(System.getProperty("user.dir"));
+    }
+
     @Test
     void todoORestoExigeLogin() throws Exception {
         assertThat(get("/qualquer/coisa", null).statusCode()).isEqualTo(401);
         assertThat(get("/robots.txt", null).statusCode()).isEqualTo(401);
         assertThat(get("/actuator/info", null).statusCode()).isEqualTo(401);
+        assertThat(get("/actuator/env", null).statusCode()).isEqualTo(401);
+        assertThat(get("/actuator/metrics", null).statusCode()).isEqualTo(401);
+        assertThat(get("/actuator/health/diskSpace", null).statusCode()).isEqualTo(401);
         assertThat(get("/api/contas", null).statusCode()).isEqualTo(401);
         assertThat(postar("/api/admin/ingest", "", null).statusCode()).isEqualTo(401);
     }
