@@ -59,7 +59,7 @@ import org.springframework.transaction.support.TransactionOperations;
 /**
  * O reset diário contra a aplicação inteira, com o relógio sob controle do teste: o que apaga e o que
  * mantém, que roda uma vez por dia (inclusive no primeiro boot do dia), que a meia-noite é a do fuso de
- * São Paulo, que uma falha não apaga nada, e — o ponto da seção 4.6 do briefing — que depois do reset a
+ * São Paulo, que uma falha não apaga nada, e que, depois do reset, a
  * próxima mensagem de uma conversa antiga começa uma conversa nova, sem erro. Zero chamadas pagas.
  */
 @Import({DublesDoGrafoConfig.class, ResetDiarioIntegrationTest.RelogioDeTesteConfig.class})
@@ -384,7 +384,7 @@ class ResetDiarioIntegrationTest {
         assertThat(usuarios()).doesNotContain("tem.que.sobreviver");
     }
 
-    // ---- Depois do reset, a conversa continua sem erro (briefing, seção 4.6) --------------
+    // ---- Depois do reset, a conversa continua sem erro --------------
 
     @Test
     void depoisDoResetAMensagemDeUmaConversaAntigaComecaUmaNovaSemErro() throws Exception {

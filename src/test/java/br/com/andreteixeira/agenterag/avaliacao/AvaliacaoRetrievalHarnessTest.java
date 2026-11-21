@@ -231,7 +231,7 @@ class AvaliacaoRetrievalHarnessTest {
     }
 
     /**
-     * Achado #1 do code review externo (F-11): {@code HybridChunkingStrategy}
+     * Achado F-11: {@code HybridChunkingStrategy}
      * grava o título da seção como metadado, mas nunca inclui a linha do
      * cabeçalho no texto que vai para o embedding. A assinatura desse
      * problema é: o documento certo foi encontrado, mas a seção não — e é
