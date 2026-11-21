@@ -160,8 +160,17 @@ Roda uma vez, por perfil dedicado, e encerra:
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest
 ```
 
-Nunca ingere no boot da aplicação web. Há guarda de idempotência: se a tabela já tem
-chunks, a ingestão é pulada.
+Nunca ingere no boot da aplicação web. A guarda de idempotência é **por documento**: cada
+documento que já tem chunks na tabela é pulado, e a ingestão continua pelos que ainda não
+têm. Por isso rodar o mesmo comando de novo retoma uma ingestão interrompida.
+
+Para reingerir de verdade, passe a opção `--force`. Com ela nenhum documento é pulado: os
+chunks de cada documento são apagados antes de ele ser ingerido de novo — só os daquele
+documento, não os da tabela inteira.
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest -Dspring-boot.run.arguments=--force
+```
 
 ⚠️ A ingestão respeita `pausa-entre-chamadas-ms: 65000` — 65 segundos entre documentos,
 para caber no limite de embeddings por minuto do free tier. Ingerir os 14 documentos leva
