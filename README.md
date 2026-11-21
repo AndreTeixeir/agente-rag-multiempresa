@@ -590,7 +590,7 @@ distribuições se sobrepõem porque uma pergunta pode ser topicamente nativa �
 chunks reais de pagamento e logística — e mesmo assim não ter resposta no corpus. É
 exatamente por isso que existe a segunda comporta.
 
-### Limitações conhecidas
+### Limitações conhecidas da avaliação
 
 - **Granularidade de seção.** De 27 casos com documento correto e seção esperada definida, em
   10 o documento bateu mas a seção recuperada não foi a esperada. O documento certo é
@@ -687,8 +687,9 @@ dois pares, o que sugere a causa sem prová-la. Os 13 fatos precisos do Mercado 
 Santo Pegasus, de seções mais longas, não tiveram nenhuma resposta errada. Os outros dois erros
 são da Santo Pegasus e não foram investigados.
 
-É o mesmo ponto já registrado na [Limitações conhecidas](#limitações-conhecidas-1) da avaliação de
-retrieval: a granularidade de seção é onde o chunking híbrido ainda erra.
+É o mesmo ponto já registrado nas
+[limitações conhecidas da avaliação](#limitações-conhecidas-da-avaliação) de retrieval:
+a granularidade de seção é onde o chunking híbrido ainda erra.
 
 ### Decisão sobre o modelo
 
