@@ -586,11 +586,17 @@ distribuições se sobrepõem porque uma pergunta pode ser topicamente nativa �
 chunks reais de pagamento e logística — e mesmo assim não ter resposta no corpus. É
 exatamente por isso que existe a segunda comporta.
 
-### Limitação conhecida
+### Limitações conhecidas
 
-De 27 casos com documento correto e seção esperada definida, em 10 o documento bateu mas a
-seção recuperada não foi a esperada. O documento certo é recuperado em 100% dos casos; a
-granularidade de seção é onde o chunking híbrido ainda erra.
+- **Granularidade de seção.** De 27 casos com documento correto e seção esperada definida, em
+  10 o documento bateu mas a seção recuperada não foi a esperada. O documento certo é
+  recuperado em 100% dos casos; a granularidade de seção é onde o chunking híbrido ainda erra.
+- **A avaliação de retrieval fica fora do `./mvnw test` e não reprova se as taxas piorarem.**
+  O harness leva `@Tag("llm")`, então a suíte padrão o exclui, e ele depende de um banco já
+  carregado: consulta o pgvector da aplicação, sem container próprio. Suas asserções conferem
+  só que o conjunto cabe numa chamada em lote, que cada caso tem vetor e que cada busca
+  devolveu algum resultado; as taxas e as distribuições de score são apenas registradas no
+  log. Os números das tabelas acima vêm de execução manual.
 
 ---
 
@@ -677,7 +683,7 @@ dois pares, o que sugere a causa sem prová-la. Os 13 fatos precisos do Mercado 
 Santo Pegasus, de seções mais longas, não tiveram nenhuma resposta errada. Os outros dois erros
 são da Santo Pegasus e não foram investigados.
 
-É o mesmo ponto já registrado na [Limitação conhecida](#limitação-conhecida) da avaliação de
+É o mesmo ponto já registrado na [Limitações conhecidas](#limitações-conhecidas-1) da avaliação de
 retrieval: a granularidade de seção é onde o chunking híbrido ainda erra.
 
 ### Decisão sobre o modelo
