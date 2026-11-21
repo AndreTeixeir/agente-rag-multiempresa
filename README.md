@@ -211,6 +211,17 @@ deixam de valer a cada reinício.
 Troca a estratégia híbrida pela recursiva e aponta para a tabela `document_chunks_recursive`.
 Existe para tornar a decisão de chunking mensurável, não teórica — ver seção de avaliação.
 
+⚠️ A tabela `document_chunks_recursive` é criada **vazia** pela migração `V2`: nenhuma ingestão
+a preenche sozinha. Antes de usar o perfil, ela precisa de uma ingestão própria, com os dois
+perfis ativos juntos:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest,recursivo
+```
+
+Enquanto a tabela estiver vazia, a busca não encontra nenhum trecho e toda pergunta é recusada
+pela comporta 1.
+
 ---
 
 ## Login e papéis
