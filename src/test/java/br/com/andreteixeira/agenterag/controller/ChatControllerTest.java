@@ -301,7 +301,7 @@ class ChatControllerTest {
     }
 
     /**
-     * Reproduz o achado real de produção (Item 5, Missão 2 — confirmado ao vivo
+     * Reproduz o achado real de produção (confirmado ao vivo
      * no log da VM: {@code NoResourceFoundException} para {@code /robots.txt}
      * caindo no handler genérico como "erro não mapeado", com stacktrace de
      * ~40 linhas). Cobre o caminho novo: 404 silencioso, sem log de erro.
