@@ -73,10 +73,14 @@ O sistema recusa em dois pontos distintos, e isso é intencional:
    relacionado mas não contém o fato pedido, o limiar sozinho deixa passar. O prompt exige
    que o modelo admita ausência em vez de completar a lacuna.
 
-Nas duas comportas a recusa vai **sem lista de fontes**: quando não há resposta, não há o
-que citar. Na comporta 2 o servidor reconhece a admissão pelo texto do modelo (começa com
-"Não encontrei essa informação" e não cita fonte); uma recusa escrita de outro jeito continua
-saindo com as fontes recuperadas — na dúvida, a fonte fica.
+A lista de fontes na recusa depende da comporta:
+
+- **Comporta 1:** a recusa sai sempre **sem lista de fontes**. Nenhum trecho passou do limiar,
+  então não há o que citar.
+- **Comporta 2:** a recusa sai sem fontes quando o servidor reconhece a admissão pelo texto do
+  modelo, isto é, quando o texto começa com "Não encontrei essa informação" e não cita fonte.
+- **Recusa escrita de outro jeito, ou que cite fonte:** continua saindo com as fontes
+  recuperadas — na dúvida, a fonte fica.
 
 A comporta 2 existe porque a separação por limiar **não é limpa**. Perguntar o CNPJ da
 BimBam recupera chunks de pagamento e logística com score `0.7759` — acima do limiar, e
