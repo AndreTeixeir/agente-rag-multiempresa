@@ -389,7 +389,7 @@ Como a contagem funciona:
 ./mvnw test
 ```
 
-396 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
+431 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
 
 Os mesmos testes rodam no GitHub Actions a cada push e pull request
 (`.github/workflows/ci.yml`, Java 21 Temurin), sem Postgres local e sem chaves reais — por
