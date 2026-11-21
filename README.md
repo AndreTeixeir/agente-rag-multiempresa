@@ -279,6 +279,9 @@ transação só.
 | `POST` | `/api/admin/ingest` | só no perfil `dev`, e só `SUPERADMIN` |
 | `GET` | `/`, arquivos estáticos, `/health`, `/actuator/health` | público |
 
+O `/actuator/health` é público e devolve só o status, sem detalhes de banco nem de disco
+(`management.endpoint.health.show-details: never`).
+
 Todo o resto responde 401 sem login. Os erros têm o formato `{"erro": "..."}`, com mensagem em
 português: 401 sem login ou com token inválido ou vencido, 403 quando o papel não permite, 404 para
 uma conta que quem pediu não enxerga (de outra empresa, ou o superadmin real).
