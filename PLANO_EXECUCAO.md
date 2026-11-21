@@ -1,9 +1,11 @@
 # Plano de Execução — agente-rag-multiempresa
 
+> **Documento histórico.** Plano de trabalho usado durante o desafio, congelado em 22/08/2026. O estado atual do projeto está no `README.md`; modelos, versões e decisões posteriores não foram atualizados aqui.
+
 **Challenge RAG — Alura / Oracle ONE (Tech AI Builder)**
 Prazo final: **22/ago/2026, 23:59**
 Repositório: `agente-rag-multiempresa` (público, `AndreTeixeir`)
-Local: `~/Desktop/Projetos/agente-rag-multiempresa`
+Local: pasta do repositório na máquina de desenvolvimento
 
 **Revisão 3 — 22/ago/2026.** Prazo estendido para 22/ago. Este bloco registra as
 divergências entre o que foi planejado e o que foi construído. **As etapas abaixo não foram
@@ -65,13 +67,13 @@ irrelevante para a entrega.
 
 **Objetivo:** matar as incertezas que podem invalidar decisões, antes de escrever código de verdade.
 
-**Onde:** `~/Desktop/spikes-rag/` — **projeto descartável, fora do repositório do projeto**, com
+**Onde:** pasta de spikes na máquina de desenvolvimento — **projeto descartável, fora do repositório do projeto**, com
 `pom.xml` próprio e mínimo. Não é a `main` do projeto; nada daqui é commitado.
 
 ### 0.1 — Instância OCI
 - Conferir no console a **cota atual** de Always Free A1 da conta antes de dimensionar
 - Criar `VM.Standard.A1.Flex` com **2 OCPUs / 12 GB**, região São Paulo
-- Imagem: **Ubuntu 24.04 (aarch64)** — apt é o que você já usa no Debian local
+- Imagem: **Ubuntu 24.04 (aarch64)** — o gerenciador de pacotes (apt) é o mesmo do ambiente local de desenvolvimento, em Debian
 - Boot volume padrão 50 GB (cota total 200 GB entre todas as VMs)
 - Configurar **Budget com alerta em US$ 1**
 - Anotar shape exato, IP público, região e AD
@@ -103,7 +105,7 @@ exatas anotadas para uso na Etapa 1.
 
 **Branch:** `main`
 
-- Criar `~/Desktop/Projetos/agente-rag-multiempresa`
+- Criar a pasta do projeto na máquina de desenvolvimento
 - `git init`, criar repositório **público** no GitHub, primeiro commit
 - Spring Boot 3.x + Java 21 + Maven
 - `pom.xml` com **versões fixadas** — as validadas na Etapa 0 (LangChain4j, LangGraph4j,
@@ -124,7 +126,6 @@ público no ar com o primeiro commit.
 **Objetivo:** 14 PDFs virarem Markdown estruturado.
 
 **Branch:** `feature/documentos`
-**Modelo:** Sonnet (tarefa mecânica — não gastar Opus)
 
 - PDFs originais em `src/main/resources/documentos/pdf/`
 - Markdown gerado em `src/main/resources/documentos/md/`
@@ -136,7 +137,7 @@ público no ar com o primeiro commit.
 - **Extrair e anotar os fatos que virarão asserções de teste** (ver Etapa 4). Nenhum valor
   esperado entra nos testes sem ter sido lido no documento.
 
-**Critério:** 14 `.md` gerados, tabelas críticas conferidas por você, relatório listando o que
+**Critério:** 14 `.md` gerados, tabelas críticas conferidas manualmente, relatório listando o que
 exigiu decisão de formatação e a lista de fatos verificados.
 
 **Atenção:** não recommitar os PDFs depois. Binário alterado incha o histórico do Git
@@ -258,7 +259,7 @@ aparência.
 
 ⚠️ A instância já existe desde a Etapa 0. O "hello world" HTTP sobe no dia 12, não aqui.
 
-- Build ARM64 — atenção: sua máquina é x86. Ou constrói na própria VM, ou usa `buildx`
+- Build ARM64 — atenção: a máquina de desenvolvimento é x86. Ou constrói na própria VM, ou usa `buildx`
   com `--platform linux/arm64`. Imagem construída em x86 **não roda** na Ampere.
 - Postgres na instância (container ou nativo)
 - Rodar ingestão pelo perfil `ingest`
