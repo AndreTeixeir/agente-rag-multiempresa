@@ -884,10 +884,32 @@ durante o desenvolvimento e passou a responder 404 — a segunda vez, no mesmo p
 que um modelo do fornecedor saiu do ar em pleno curso. A prática que ficou: nome exato e
 explícito no `application.yml`, nunca um alias genérico, que muda sob os pés.
 
-Depois disso, a geração passou para o Sabiazinho-4, da Maritaca (API compatível com a OpenAI);
-os embeddings seguem no `gemini-embedding-001`. A qualidade das respostas com o Sabiazinho-4 foi
-medida depois, e a troca por um modelo maior foi considerada e não adotada — ver
-[Avaliação das respostas](#avaliação-das-respostas).
+Depois disso, a geração passou para o Sabiazinho-4, da Maritaca. A história está na subseção seguinte.
+
+### Do Gemini para a Maritaca na geração
+
+A geração das respostas usava o `gemini-3.6-flash`, no plano gratuito. A troca para o
+Sabiazinho-4 foi feita em 21/10/2026 e entrou na `main` em 29/10/2026, com o PR #2. O motivo
+principal foi custo: com o teto diário de requisições de geração do plano gratuito, testar o
+sistema repetidas vezes era difícil. Com o preço do Sabiazinho-4 (tabela em
+[Decisão sobre o modelo](#decisão-sobre-o-modelo)), passou a ser viável rodar testes e
+avaliações com o modelo real. Uma semana depois, os 43 casos de avaliação foram enviados a ele.
+
+A troca coube em quatro arquivos de produção, porque a API da Maritaca é compatível com a da
+OpenAI e o código depende da interface `ChatModel` da LangChain4j, não de um fornecedor:
+
+- `RespostaConfig.java`: o cliente passou de `GoogleAiGeminiChatModel` para `OpenAiChatModel`;
+- `application.yml` e `RespostaProperties.java`: URL base, nome do modelo e a variável da chave;
+- `pom.xml`: a dependência `langchain4j-open-ai`.
+
+O serviço que monta o prompt, o grafo de conversa, a busca e os embeddings não mudaram; os
+embeddings continuam no `gemini-embedding-001`. Junto veio um teste que sobe um servidor HTTP
+local no formato da OpenAI e confere, sem chave e sem rede externa, que o cliente é montado com
+os valores do `application.yml`. Os erros de limite e de tempo do provedor passaram a virar
+HTTP 503 com mensagem clara.
+
+A qualidade das respostas com o Sabiazinho-4 foi medida depois, e a troca por um modelo maior
+foi considerada e não adotada: ver [Avaliação das respostas](#avaliação-das-respostas).
 
 ### O `.env` era ignorado em silêncio
 
