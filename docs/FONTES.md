@@ -1,7 +1,7 @@
 # Fontes dos documentos — proveniência dos 14 PDFs
 
 Os 14 PDFs em `src/main/resources/documentos/pdf/` foram copiados de
-`~/Desktop/Projetos/alura-ia/` (projeto separado, fora deste repositório) em 2026-08-12,
+outro projeto local, fora deste repositório, em 2026-08-12,
 com renomeação para a convenção deste projeto: minúsculas, sem acento, sem espaço, separado
 por hífen, prefixado pela empresa (`bimbam-`, `mercado-central-`, `santo-pegasus-`). O prefixo
 alimenta o metadado de empresa usado no chunking/retrieval multi-tenant.

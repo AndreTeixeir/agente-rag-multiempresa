@@ -23,7 +23,7 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * Integração ponta a ponta da Etapa 9 (Testcontainers com Postgres real) —
- * lacuna explícita do plano, nunca coberta até esta missão.
+ * lacuna explícita do plano.
  * <p>
  * Container próprio do teste, porta dinâmica — nunca o Postgres do
  * {@code docker-compose} (porta 5434). Imagem {@code pgvector/pgvector:pg16},

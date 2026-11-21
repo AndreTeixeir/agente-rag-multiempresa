@@ -73,10 +73,15 @@ O sistema recusa em dois pontos distintos, e isso é intencional:
    relacionado mas não contém o fato pedido, o limiar sozinho deixa passar. O prompt exige
    que o modelo admita ausência em vez de completar a lacuna.
 
-Nas duas comportas a recusa vai **sem lista de fontes**: quando não há resposta, não há o
-que citar. Na comporta 2 o servidor reconhece a admissão pelo texto do modelo (começa com
-"Não encontrei essa informação" e não cita fonte); uma recusa escrita de outro jeito continua
-saindo com as fontes recuperadas — na dúvida, a fonte fica.
+A lista de fontes na recusa depende da comporta:
+
+- **Comporta 1:** a recusa sai sempre **sem lista de fontes**. Nenhum trecho passou do limiar,
+  então não há o que citar.
+- **Comporta 2:** a recusa sai sem fontes quando o servidor reconhece a admissão pelo texto do
+  modelo, isto é, quando o texto começa com "Não encontrei essa informação" (sem diferenciar
+  maiúsculas de minúsculas) e não traz a marca "Fonte:" em lugar nenhum.
+- **Recusa escrita de outro jeito, ou que cite fonte:** continua saindo com as fontes
+  recuperadas — na dúvida, a fonte fica.
 
 A comporta 2 existe porque a separação por limiar **não é limpa**. Perguntar o CNPJ da
 BimBam recupera chunks de pagamento e logística com score `0.7759` — acima do limiar, e
@@ -156,8 +161,18 @@ Roda uma vez, por perfil dedicado, e encerra:
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest
 ```
 
-Nunca ingere no boot da aplicação web. Há guarda de idempotência: se a tabela já tem
-chunks, a ingestão é pulada.
+Nunca ingere no boot da aplicação web. A guarda de idempotência é **por documento**: cada
+documento que já tem chunks na tabela é pulado, e a ingestão continua pelos que ainda não
+têm. Por isso rodar o mesmo comando de novo retoma uma ingestão interrompida. A exceção é um
+documento que ficou com gravação parcial: ele já tem chunks, é pulado, e só `--force` o refaz.
+
+Para reingerir de verdade, passe a opção `--force`. Com ela nenhum documento é pulado: os
+chunks de cada documento são apagados antes de ele ser ingerido de novo — só os daquele
+documento, não os da tabela inteira.
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest -Dspring-boot.run.arguments=--force
+```
 
 ⚠️ A ingestão respeita `pausa-entre-chamadas-ms: 65000` — 65 segundos entre documentos,
 para caber no limite de embeddings por minuto do free tier. Ingerir os 14 documentos leva
@@ -197,6 +212,17 @@ deixam de valer a cada reinício.
 
 Troca a estratégia híbrida pela recursiva e aponta para a tabela `document_chunks_recursive`.
 Existe para tornar a decisão de chunking mensurável, não teórica — ver seção de avaliação.
+
+⚠️ A tabela `document_chunks_recursive` é criada **vazia** pela migração `V2`: nenhuma ingestão
+a preenche sozinha. Antes de usar o perfil, ela precisa de uma ingestão própria, com os dois
+perfis ativos juntos:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=ingest,recursivo
+```
+
+Enquanto a tabela estiver vazia, a busca não encontra nenhum trecho e toda pergunta é recusada
+pela comporta 1.
 
 ---
 
@@ -265,6 +291,10 @@ transação só.
 | `DELETE` | `/api/contas/{id}` | `ADMIN`, `SUPERADMIN` |
 | `POST` | `/api/admin/ingest` | só no perfil `dev`, e só `SUPERADMIN` |
 | `GET` | `/`, arquivos estáticos, `/health`, `/actuator/health` | público |
+
+O `/actuator/health` é público e devolve só o status (e, no máximo, os nomes dos grupos de
+sonda, sem dado nenhum), sem detalhes de banco nem de disco
+(`management.endpoint.health.show-details: never`).
 
 Todo o resto responde 401 sem login. Os erros têm o formato `{"erro": "..."}`, com mensagem em
 português: 401 sem login ou com token inválido ou vencido, 403 quando o papel não permite, 404 para
@@ -389,7 +419,7 @@ Como a contagem funciona:
 ./mvnw test
 ```
 
-396 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
+431 testes, todos offline. **Exige Docker**: os testes de integração sobem o próprio container.
 
 Os mesmos testes rodam no GitHub Actions a cada push e pull request
 (`.github/workflows/ci.yml`, Java 21 Temurin), sem Postgres local e sem chaves reais — por
@@ -552,18 +582,25 @@ números mostram que **nenhum limiar separa os dois grupos**:
 
 - menor score entre fatos com resposta legítima: **0,7201** (porta do
   `ai-assistant-service`, Santo Pegasus)
-- maior score entre perguntas que deveriam ser recusadas: **0,7759** (CNPJ da BimBam)
+- maior score entre perguntas que deveriam ser recusadas: **0,8029** (roadmap técnico da
+  Santo Pegasus: a seção está no índice do documento, mas não no corpo)
 
 Qualquer limiar alto o bastante para barrar o segundo barraria também o primeiro. As
 distribuições se sobrepõem porque uma pergunta pode ser topicamente nativa — o CNPJ recupera
 chunks reais de pagamento e logística — e mesmo assim não ter resposta no corpus. É
 exatamente por isso que existe a segunda comporta.
 
-### Limitação conhecida
+### Limitações conhecidas
 
-De 27 casos com documento correto e seção esperada definida, em 10 o documento bateu mas a
-seção recuperada não foi a esperada. O documento certo é recuperado em 100% dos casos; a
-granularidade de seção é onde o chunking híbrido ainda erra.
+- **Granularidade de seção.** De 27 casos com documento correto e seção esperada definida, em
+  10 o documento bateu mas a seção recuperada não foi a esperada. O documento certo é
+  recuperado em 100% dos casos; a granularidade de seção é onde o chunking híbrido ainda erra.
+- **A avaliação de retrieval fica fora do `./mvnw test` e não reprova se as taxas piorarem.**
+  O harness leva `@Tag("llm")`, então a suíte padrão o exclui, e ele depende de um banco já
+  carregado: consulta o pgvector da aplicação, sem container próprio. Suas asserções são de
+  integridade (o conjunto cabe numa chamada em lote, cada caso tem vetor, cada busca devolveu
+  algum resultado) e nenhuma compara taxa ou score; as taxas e as distribuições de score são
+  apenas registradas no log. Os números das tabelas acima vêm de execução manual.
 
 ---
 
@@ -650,7 +687,7 @@ dois pares, o que sugere a causa sem prová-la. Os 13 fatos precisos do Mercado 
 Santo Pegasus, de seções mais longas, não tiveram nenhuma resposta errada. Os outros dois erros
 são da Santo Pegasus e não foram investigados.
 
-É o mesmo ponto já registrado na [Limitação conhecida](#limitação-conhecida) da avaliação de
+É o mesmo ponto já registrado na [Limitações conhecidas](#limitações-conhecidas-1) da avaliação de
 retrieval: a granularidade de seção é onde o chunking híbrido ainda erra.
 
 ### Decisão sobre o modelo
@@ -899,7 +936,7 @@ aqui e em `docs/DECISOES.md`.
 
 | Arquivo | Conteúdo |
 |---|---|
-| `PLANO_EXECUCAO.md` | plano de execução por etapas |
+| `PLANO_EXECUCAO.md` | plano de execução por etapas (documento histórico, congelado em 22/08/2026) |
 | `docs/DECISOES.md` | registro datado de decisões técnicas |
 | `docs/FATOS_VERIFICADOS.md` | fatos extraídos dos documentos, base das asserções de teste |
 | `docs/FONTES.md` | rastreabilidade das fontes |
