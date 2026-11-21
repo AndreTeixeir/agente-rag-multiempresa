@@ -579,7 +579,8 @@ números mostram que **nenhum limiar separa os dois grupos**:
 
 - menor score entre fatos com resposta legítima: **0,7201** (porta do
   `ai-assistant-service`, Santo Pegasus)
-- maior score entre perguntas que deveriam ser recusadas: **0,7759** (CNPJ da BimBam)
+- maior score entre perguntas que deveriam ser recusadas: **0,8029** (roadmap técnico da
+  Santo Pegasus: a seção está no índice do documento, mas não no corpo)
 
 Qualquer limiar alto o bastante para barrar o segundo barraria também o primeiro. As
 distribuições se sobrepõem porque uma pergunta pode ser topicamente nativa — o CNPJ recupera
