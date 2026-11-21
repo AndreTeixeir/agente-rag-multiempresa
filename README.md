@@ -78,7 +78,8 @@ A lista de fontes na recusa depende da comporta:
 - **Comporta 1:** a recusa sai sempre **sem lista de fontes**. Nenhum trecho passou do limiar,
   então não há o que citar.
 - **Comporta 2:** a recusa sai sem fontes quando o servidor reconhece a admissão pelo texto do
-  modelo, isto é, quando o texto começa com "Não encontrei essa informação" e não cita fonte.
+  modelo, isto é, quando o texto começa com "Não encontrei essa informação" (sem diferenciar
+  maiúsculas de minúsculas) e não traz a marca "Fonte:" em lugar nenhum.
 - **Recusa escrita de outro jeito, ou que cite fonte:** continua saindo com as fontes
   recuperadas — na dúvida, a fonte fica.
 
@@ -162,7 +163,8 @@ Roda uma vez, por perfil dedicado, e encerra:
 
 Nunca ingere no boot da aplicação web. A guarda de idempotência é **por documento**: cada
 documento que já tem chunks na tabela é pulado, e a ingestão continua pelos que ainda não
-têm. Por isso rodar o mesmo comando de novo retoma uma ingestão interrompida.
+têm. Por isso rodar o mesmo comando de novo retoma uma ingestão interrompida. A exceção é um
+documento que ficou com gravação parcial: ele já tem chunks, é pulado, e só `--force` o refaz.
 
 Para reingerir de verdade, passe a opção `--force`. Com ela nenhum documento é pulado: os
 chunks de cada documento são apagados antes de ele ser ingerido de novo — só os daquele
@@ -290,7 +292,8 @@ transação só.
 | `POST` | `/api/admin/ingest` | só no perfil `dev`, e só `SUPERADMIN` |
 | `GET` | `/`, arquivos estáticos, `/health`, `/actuator/health` | público |
 
-O `/actuator/health` é público e devolve só o status, sem detalhes de banco nem de disco
+O `/actuator/health` é público e devolve só o status (e, no máximo, os nomes dos grupos de
+sonda, sem dado nenhum), sem detalhes de banco nem de disco
 (`management.endpoint.health.show-details: never`).
 
 Todo o resto responde 401 sem login. Os erros têm o formato `{"erro": "..."}`, com mensagem em
@@ -594,10 +597,10 @@ exatamente por isso que existe a segunda comporta.
   recuperado em 100% dos casos; a granularidade de seção é onde o chunking híbrido ainda erra.
 - **A avaliação de retrieval fica fora do `./mvnw test` e não reprova se as taxas piorarem.**
   O harness leva `@Tag("llm")`, então a suíte padrão o exclui, e ele depende de um banco já
-  carregado: consulta o pgvector da aplicação, sem container próprio. Suas asserções conferem
-  só que o conjunto cabe numa chamada em lote, que cada caso tem vetor e que cada busca
-  devolveu algum resultado; as taxas e as distribuições de score são apenas registradas no
-  log. Os números das tabelas acima vêm de execução manual.
+  carregado: consulta o pgvector da aplicação, sem container próprio. Suas asserções são de
+  integridade (o conjunto cabe numa chamada em lote, cada caso tem vetor, cada busca devolveu
+  algum resultado) e nenhuma compara taxa ou score; as taxas e as distribuições de score são
+  apenas registradas no log. Os números das tabelas acima vêm de execução manual.
 
 ---
 
