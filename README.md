@@ -937,7 +937,7 @@ aqui e em `docs/DECISOES.md`.
 
 | Arquivo | Conteúdo |
 |---|---|
-| `PLANO_EXECUCAO.md` | plano de execução por etapas (documento histórico, congelado em 22/08/2026) |
+| `PLANO_EXECUCAO.md` | plano de execução por etapas (documento histórico; Revisão 3, de 22/08/2026) |
 | `docs/DECISOES.md` | registro datado de decisões técnicas |
 | `docs/FATOS_VERIFICADOS.md` | fatos extraídos dos documentos, base das asserções de teste |
 | `docs/FONTES.md` | rastreabilidade das fontes |

@@ -1,6 +1,6 @@
 # Plano de Execução — agente-rag-multiempresa
 
-> **Documento histórico.** Plano de trabalho usado durante o desafio, congelado em 22/08/2026. O estado atual do projeto está no `README.md`; modelos, versões e decisões posteriores não foram atualizados aqui.
+> **Documento histórico.** Plano de trabalho usado durante o desafio. A última revisão de conteúdo é a Revisão 3, datada de 22/08/2026. O estado atual do projeto está no `README.md`; modelos, versões e decisões posteriores não foram atualizados aqui.
 
 **Challenge RAG — Alura / Oracle ONE (Tech AI Builder)**
 Prazo final: **22/ago/2026, 23:59**
