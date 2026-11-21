@@ -38,7 +38,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * primeira execução, ou com {@code -DregenerarFixture=true} — ver
  * {@link FixtureVetores}), então fica fora do {@code mvn test} padrão, mesma
  * convenção de {@code GeminiEmbeddingSmokeTest}. Rodar explicitamente com:
- * <pre>{@code mvn test -Dtest=AvaliacaoRetrievalHarnessTest -DexcludedGroups=}</pre>
+ * <pre>{@code mvn test -Dtest=AvaliacaoRetrievalHarnessTest -Dgroups=llm -Dsurefire.excludedGroups=}</pre>
  */
 @Tag("llm")
 @SpringBootTest
