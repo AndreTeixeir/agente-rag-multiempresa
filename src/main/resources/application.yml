@@ -142,7 +142,7 @@ app:
     # Limiar de score de cosseno (0 a 1) para um chunk ser considerado
     # relevante o suficiente para entrar no contexto — MEDIDO, não chutado.
     # Fonte: harness da Etapa 4.2a (AvaliacaoRetrievalHarnessTest) contra os
-    # 719 chunks reais, ver ~/Downloads/relatorios-agente-rag/2026-08-17-etapa-4-2a-conclusao.md.
+    # 719 chunks reais; medição registrada no relatório da etapa 4.2a, fora do repositório.
     # O maior score entre os casos claramente fora de escopo foi 0.6397
     # (colisão de prazo de reembolso perguntada à Santo Pegasus, que não tem
     # esse conceito). O menor score entre os fatos com resposta legítima foi
