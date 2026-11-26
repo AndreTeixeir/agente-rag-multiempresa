@@ -29,8 +29,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
- * Mapeamento de exceção para HTTP da Etapa 6 (contrato decidido com o André,
- * relatório da etapa):
+ * Mapeamento de exceção para HTTP da Etapa 6:
  * <ul>
  *     <li>{@link IllegalArgumentException} — slug de empresa inválido (chamador
  *     mandou algo, mas errado) — 400, mensagem original (escrita para ser lida).</li>

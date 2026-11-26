@@ -123,3 +123,20 @@ motivo de fidelidade. Marcar e não corrigir permite que o agente RAG, ao respon
 cite a inconsistência (e a conta certa, se perguntado) em vez de escolher sozinho qual
 dos dois números — o do documento ou o matematicamente correto — apresentar como
 resposta.
+
+## 2026-10-21 — Geração das respostas: do Gemini para o Sabiazinho-4 (Maritaca)
+
+A geração das respostas saiu do `gemini-3.6-flash` e passou para o `sabiazinho-4`, da Maritaca,
+pela API compatível com a da OpenAI. Os embeddings continuam no `gemini-embedding-001`.
+
+**Motivo:** custo. No plano gratuito do Gemini, o teto diário de requisições de geração
+dificultava testar o sistema repetidas vezes; o preço do Sabiazinho-4 tornou viável rodar
+testes e avaliações com o modelo real.
+
+**O que mudou:** quatro arquivos de produção (commit `8aa5b88`): `RespostaConfig.java`, com o
+cliente `OpenAiChatModel`; `RespostaProperties.java`; `application.yml`, com URL base, modelo e
+variável da chave; e `pom.xml`, com a dependência `langchain4j-open-ai`. O serviço que monta o
+prompt, o grafo, a busca e os embeddings não mudaram.
+
+**Depois:** a qualidade das respostas foi avaliada em 28/10/2026, com 43 casos, e a troca pelo
+Sabiá-4 foi considerada e não adotada (ver README, "Avaliação das respostas").
